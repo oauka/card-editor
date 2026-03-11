@@ -63,7 +63,7 @@ function Chk({label,v,onChange}){
 /* ════════════════ 메인 에디터 ════════════════ */
 
 const _IC = {
-  phone:     "M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 8.8 19.79 19.79 0 01.88 2.18A2 2 0 012.85 0h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L6.91 7.91a16 16 0 006.06 6.06l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z",
+  phone:     "M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.56a1 1 0 01-.25 1.02l-2.2 2.21z",
   fax:       "M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z",
   mobile:    "M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z",
   email:     "M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zm18 2l-10 7L2 6",
@@ -122,11 +122,16 @@ const _IC = {
   surprise:  "M12 22a10 10 0 100-20 10 10 0 000 20zM12 16a3 3 0 100-6 3 3 0 000 6zM9 9h.01M15 9h.01",
 };
 
+const _IC_FILLED = new Set(["twitter","phone","star","heart","moon"]);
+
 function IcoSVG({type, color, size, style}) {
   const d = _IC[type] || "M12 2a10 10 0 100 20A10 10 0 0012 2z";
+  const filled = _IC_FILLED.has(type);
   return (
     <svg viewBox="0 0 24 24" width={size||16} height={size||16}
-      fill="none" stroke={color||"currentColor"} strokeWidth="2"
+      fill={filled ? (color||"currentColor") : "none"}
+      stroke={filled ? "none" : (color||"currentColor")}
+      strokeWidth="2"
       strokeLinecap="round" strokeLinejoin="round"
       style={{display:"inline-block",flexShrink:0,...(style||{})}}>
       <path d={d}/>
@@ -596,6 +601,7 @@ function CardEditor({onReset}){
         if(!eDrag.current.moved){
           if(Math.abs(dxPx)<4&&Math.abs(dyPx)<4) return;
           eDrag.current.moved=true;
+          e.preventDefault?.();
         }
         const xMM=startXMM+dxPx/ppm;
         const yMM=startYMM+dyPx/ppm;
@@ -669,7 +675,6 @@ function CardEditor({onReset}){
     if(e.button!==undefined&&e.button!==0) return;
     if(isLocked(id)) return;
     e.stopPropagation();
-    e.preventDefault();
     const cl=e.touches?e.touches[0]:e;
     let elem=null;
     if(type==="text")  elem=texts.find(t=>t.id===id);
@@ -804,6 +809,7 @@ function CardEditor({onReset}){
         ctx.save();
         ctx.translate(P(im.xMM)+P(im.wMM)/2, P(im.yMM)+P(im.hMM)/2);
         ctx.rotate((im.rotate||0)*Math.PI/180);
+        if(im.flipX) ctx.scale(-1,1);
         ctx.drawImage(img,-P(im.wMM)/2,-P(im.hMM)/2,P(im.wMM),P(im.hMM));
         ctx.restore();
       }
@@ -814,6 +820,7 @@ function CardEditor({onReset}){
         const hw=P(sh.wMM)/2, hh=P(sh.hMM)/2;
         ctx.save();
         ctx.translate(P(sh.xMM)+hw, P(sh.yMM)+hh);
+        if(sh.flipX) ctx.scale(-1,1);
         ctx.rotate((sh.rotate||0)*Math.PI/180);
         ctx.fillStyle = sh.fill||'#ccc';
         if(sh.type==='circle'){
@@ -841,6 +848,7 @@ function CardEditor({onReset}){
         ctx.save();
         ctx.translate(P(ph.xMM)+hw, P(ph.yMM)+hh);
         ctx.rotate((ph.rotate||0)*Math.PI/180);
+        if(ph.flipX) ctx.scale(-1,1);
         ctx.beginPath();
         if(ph.shape==='circle'){
           ctx.ellipse(0,0,hw,hh,0,0,Math.PI*2);
@@ -867,6 +875,7 @@ function CardEditor({onReset}){
         ctx.save();
         ctx.translate(P(t.xMM), P(t.yMM));
         ctx.rotate((t.rotate||0)*Math.PI/180);
+        if(t.flipX) ctx.scale(-1,1);
         ctx.font         = `${sty} ${wgt} ${fs}px "${fam}",sans-serif`;
         ctx.fillStyle    = t.color || '#000';
         ctx.textBaseline = 'top';
@@ -893,12 +902,18 @@ function CardEditor({onReset}){
         ctx.save();
         ctx.translate(P(ic.xMM)+isz/2, P(ic.yMM)+isz/2);
         ctx.rotate((ic.rotate||0)*Math.PI/180);
+        if(ic.flipX) ctx.scale(-1,1);
         ctx.translate(-isz*0.4, -isz*0.4);
         ctx.scale(sc2, sc2);
         ctx.strokeStyle = ic.color||'#000';
+        ctx.fillStyle   = ic.color||'#000';
         ctx.lineWidth   = 2/sc2;
         ctx.lineCap='round'; ctx.lineJoin='round';
-        try{ ctx.stroke(new Path2D(pathData)); }catch(e){}
+        try{
+          const p2d = new Path2D(pathData);
+          if(_IC_FILLED.has(ic.type)){ ctx.fill(p2d); }
+          else { ctx.stroke(p2d); }
+        }catch(e){}
         ctx.restore();
       }
     }
@@ -1008,6 +1023,31 @@ function CardEditor({onReset}){
     if(ic){const id=uid();setIcons(p=>[...p,{...ic,id,xMM:ic.xMM+OFF,yMM:ic.yMM+OFF}]);addLayer(id,"icon");setSel(id);return;}
   },[sel,texts,photos,images,shapes,icons]);
 
+  // ── 정렬 (재단선 기준) ──
+  const alignElem = useCallback((halign, valign) => {
+    if(!sel) return;
+    const cutL=MAR, cutR=cardW-MAR, cutT=MAR, cutB=cardH-MAR;
+    const cutCX=(cutL+cutR)/2, cutCY=(cutT+cutB)/2;
+    const ppm=BASE*rScale.current*rZoom.current;
+    const getElemSize=(id)=>{
+      const el=document.querySelector(`[data-elem-id="${id}"]`);
+      if(el&&ppm>0){const r=el.getBoundingClientRect();return{w:r.width/ppm,h:r.height/ppm};}
+      return{w:0,h:0};
+    };
+    const ax=(w)=>{const ww=w||0;return halign==='left'?cutL:halign==='center'?cutCX-ww/2:cutR-ww;};
+    const ay=(h)=>{const hh=h||0;return valign==='top'?cutT:valign==='middle'?cutCY-hh/2:cutB-hh;};
+    const sh=shapes.find(x=>x&&x.id===sel);
+    if(sh&&sh.wMM!==undefined){setShapes(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(s.wMM),yMM:ay(s.hMM)}));return;}
+    const ph=photos.find(x=>x&&x.id===sel);
+    if(ph&&ph.wMM!==undefined){setPhotos(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(s.wMM),yMM:ay(s.hMM)}));return;}
+    const im=images.find(x=>x&&x.id===sel);
+    if(im&&im.wMM!==undefined){setImages(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(s.wMM),yMM:ay(s.hMM)}));return;}
+    const ic=icons.find(x=>x&&x.id===sel);
+    if(ic){setIcons(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(s.sizeMM||0),yMM:ay(s.sizeMM||0)}));return;}
+    const tx=texts.find(x=>x&&x.id===sel);
+    if(tx){const {w,h}=getElemSize(tx.id);setTexts(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(w),yMM:ay(h)}));return;}
+  },[sel,cardW,cardH,shapes,photos,images,icons,texts]);
+
   // ── 빈 템플릿 ──
   const applyBlankTemplate=()=>{
     setTexts([]);setPhotos([]);setImages([]);setShapes([]);setIcons([]);
@@ -1016,6 +1056,29 @@ function CardEditor({onReset}){
 
   const sIcon = icons.find(ic=>ic.id===sel);
   useEffect(()=>{ if(sel&&!icons.find(ic=>ic.id===sel)) setShowIconPicker(false); },[sel,icons]);
+
+  const _AP=[['left','top'],['center','top'],['right','top'],['left','middle'],['center','middle'],['right','middle'],['left','bottom'],['center','bottom'],['right','bottom']];
+  const _AL={'left,top':'좌상','center,top':'위','right,top':'우상','left,middle':'좌','center,middle':'중앙','right,middle':'우','left,bottom':'좌하','center,bottom':'아래','right,bottom':'우하'};
+  const AlignBtns=()=>(
+    <div style={{display:"flex",alignItems:"center",gap:2,flexShrink:0}}>
+      <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",margin:"0 4px",flexShrink:0}}/>
+      <span style={{fontSize:11,color:"rgba(255,255,255,.7)",marginRight:2,flexShrink:0}}>정렬</span>
+      {_AP.map(([h,v],i)=>{
+        const col=i%3,row=Math.floor(i/3);
+        return(
+          <button key={i} onMouseDown={e=>e.stopPropagation()} onClick={()=>alignElem(h,v)} title={_AL[h+','+v]}
+            style={{width:22,height:22,background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.2)",
+              borderRadius:3,cursor:"pointer",padding:0,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <svg width="12" height="12" viewBox="0 0 12 12">
+              {Array.from({length:9},function(_,n){var r=Math.floor(n/3),c=n%3;return(
+                <circle key={n} cx={2+c*4} cy={2+r*4} r={1.3} fill={r===row&&c===col?"#fff":"rgba(255,255,255,.3)"}/>
+              );})}
+            </svg>
+          </button>
+        );
+      })}
+    </div>
+  );
   const onImageFile=e=>{
     const f=e.target.files[0]; if(!f) return;
     e.target.value="";
@@ -1027,7 +1090,7 @@ function CardEditor({onReset}){
         const asp=img.width/img.height;
         const wMM=cs.w*0.3, hMM=wMM/asp;
         const id=uid();
-        setImages(p=>[...p,{id,src:url,xMM:(cs.w-wMM)/2,yMM:(cs.h-hMM)/2,wMM,hMM,aspect:asp,rotate:0}]);
+        setImages(p=>[...p,{id,src:url,xMM:(cs.w-wMM)/2,yMM:(cs.h-hMM)/2,wMM,hMM,aspect:asp,rotate:0,origWMM:wMM,origHMM:hMM}]);
         addLayer(id,"image");
         setSel(id);
       };
@@ -1067,6 +1130,7 @@ function CardEditor({onReset}){
   const sT = texts.find(t=>t.id===sel);
   const sSh = shapes.find(sh=>sh.id===sel);
   const sP = photos.find(p=>p.id===sel);
+  const sIm = images.find(im=>im.id===sel);
   useEffect(()=>{
     if(sP){ setSizeW((sP.wMM/10).toFixed(1)); setSizeH((sP.hMM/10).toFixed(1)); }
   },[sP?.wMM,sP?.hMM,sel]);
@@ -1109,7 +1173,7 @@ function CardEditor({onReset}){
         <span>Copyright 2026. MUJIMUJI Options Editor All rights reserved. &nbsp;|&nbsp; 본 서비스(에디터)의 무단 복제, 수정 및 배포를 금지합니다.</span>
         <span>문의 및 버그 제보 Mail : <a href="mailto:mujimuji.purity012@aleeas.com" style={{color:"#708090",textDecoration:"none"}}>mujimuji.purity012@aleeas.com</a></span>
       </div>
-      <div style={{position:"sticky",top:0,zIndex:200,marginRight:180,background:"#708090"}}>
+      <div style={{position:"sticky",top:0,zIndex:200,marginRight:220,background:"#708090"}}>
       {/* ══ TOOLBAR ══ */}
       <div ref={toolbarRef} style={{background:"#708090",borderBottom:"1px solid rgba(0,0,0,.25)",padding:"6px 14px",display:"flex",alignItems:"center",justifyContent:"center",
         gap:9,flexWrap:"wrap",minHeight:46,boxShadow:"0 2px 6px rgba(0,0,0,.15)"}}>
@@ -1152,11 +1216,11 @@ function CardEditor({onReset}){
         <Sep/>
         <Btn onClick={addText}>＋ 텍스트</Btn>
         <Btn onClick={addPhoto}>＋ 사진</Btn>
-        <Btn onClick={addImage}>＋ 이미지</Btn>
+        <Btn onClick={addImage}>이미지 불러오기</Btn>
         <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={onImageFile}/>
-        <Btn onClick={()=>addShape("rect")}>＋ □</Btn>
-        <Btn onClick={()=>addShape("circle")}>＋ ○</Btn>
-        <Btn onClick={()=>addShape("triangle")}>＋ △</Btn>
+        <Btn onClick={()=>addShape("rect")}>＋ <svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("circle")}>＋ <svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("triangle")}>＋ <svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
         <Btn onClick={()=>{setSel(null);setShowIconPicker(v=>!v);}}>＋ 아이콘</Btn>
         <Btn onClick={copyElem} disabled={!sel}>복사</Btn>
         <Btn onClick={()=>setShowPreview(true)}>미리보기</Btn>
@@ -1165,17 +1229,11 @@ function CardEditor({onReset}){
 
       {/* ══ 아이콘 편집바 (선택됐을 때) ══ */}
       <div onMouseDown={e=>e.preventDefault()}
-        style={{display:sIcon?"flex":"none",background:"#708090",borderBottom:"1px solid rgba(0,0,0,.18)",
+        style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:220,zIndex:190,
+          display:sIcon?"flex":"none",background:"#708090",borderBottom:"1px solid rgba(0,0,0,.18)",
           padding:"5px 10px",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap",
-          pointerEvents:"all"}}>
+          pointerEvents:sIcon?"all":"none"}}>
         {sIcon&&<>
-          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>색상</span>
-          <div onMouseDown={e=>e.stopPropagation()} style={{position:"relative",width:28,height:24,borderRadius:3,background:sIcon.color,cursor:"pointer",flexShrink:0,overflow:"hidden"}}>
-            <input type="color" value={sIcon.color}
-              onChange={e=>setIcons(p=>p.map(ic=>ic.id!==sIcon.id?ic:{...ic,color:e.target.value}))}
-              style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
-          </div>
-          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
           <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>크기</span>
           <input type="text" inputMode="numeric" value={Math.round(sIcon.sizeMM)}
             onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>0)setIcons(p=>p.map(ic=>ic.id!==sIcon.id?ic:{...ic,sizeMM:v}));}}
@@ -1183,10 +1241,29 @@ function CardEditor({onReset}){
             style={{width:44,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
               color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
           <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>mm</span>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>각도</span>
+          <input type="text" inputMode="numeric" value={Math.round(sIcon.rotate||0)}
+            onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v))setIcons(p=>p.map(ic=>ic.id!==sIcon.id?ic:{...ic,rotate:v}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:44,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>°</span>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>색상</span>
+          <div onMouseDown={e=>e.stopPropagation()} style={{position:"relative",width:28,height:24,borderRadius:3,background:sIcon.color,cursor:"pointer",flexShrink:0,overflow:"hidden"}}>
+            <input type="color" value={sIcon.color}
+              onChange={e=>setIcons(p=>p.map(ic=>ic.id!==sIcon.id?ic:{...ic,color:e.target.value}))}
+              style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
+          </div>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>setIcons(p=>p.map(ic=>ic.id!==sIcon.id?ic:{...ic,flipX:!ic.flipX}))}
+            style={{padding:"3px 8px",background:sIcon.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <AlignBtns/>
         </>}
       </div>
-
-      {/* ══ 아이콘 피커 (＋아이콘 클릭 시 그리드) ══ */}
       <div onMouseDown={e=>e.preventDefault()}
         style={{display:showIconPicker?"block":"none",background:"#708090",borderBottom:"1px solid rgba(0,0,0,.18)",
           padding:"8px 14px"}}>
@@ -1226,7 +1303,7 @@ function CardEditor({onReset}){
       {/* ══ 텍스트 편집바 ══ */}
       <div
         onMouseDown={e=>e.preventDefault()}
-        style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:180,zIndex:190,
+        style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:220,zIndex:190,
           background:"#5a6a7a",borderBottom:"1px solid rgba(0,0,0,.2)",
           padding:"5px 10px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap",
           visibility:sT?"visible":"hidden",pointerEvents:sT?"all":"none"}}>
@@ -1255,6 +1332,11 @@ function CardEditor({onReset}){
                 color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
             <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>°</span>
           </div>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)"}}/>
+          <button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>upd(sT.id,"flipX",!sT.flipX)}
+            style={{padding:"3px 8px",background:sT.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
           <div style={{width:1,height:20,background:"rgba(255,255,255,.2)"}}/>
           {[
             {k:"bold",   label:"B", style:{fontWeight:700}},
@@ -1314,14 +1396,16 @@ function CardEditor({onReset}){
             </div>
           </div>
           <div style={{width:1,height:20,background:"rgba(255,255,255,.2)"}}/>
+          <button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>upd(sT.id,"flipX",!sT.flipX)}
+            style={{padding:"3px 8px",background:sT.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <AlignBtns/>
         </>}
       </div>
-
-
-      {/* ══ 도형 편집바 ══ */}
       <div
         onMouseDown={e=>e.preventDefault()}
-        style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:180,zIndex:190,
+        style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:220,zIndex:190,
           background:"#708090",borderBottom:"1px solid rgba(0,0,0,.18)",
           padding:"5px 10px",display:"flex",alignItems:"center",justifyContent:"center",gap:6,flexWrap:"wrap",
           visibility:sSh?"visible":"hidden",pointerEvents:sSh?"all":"none"}}>
@@ -1374,12 +1458,17 @@ function CardEditor({onReset}){
                 color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
             <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>px</span>
           </>}
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,flipX:!s.flipX}))}
+            style={{padding:"3px 8px",background:sSh.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <AlignBtns/>
         </>}
       </div>
 
-
       {sP&&(
-        <div style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:180,zIndex:190,background:"#5a6a7a",borderBottom:"1px solid rgba(0,0,0,.25)",
+        <div style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:220,zIndex:190,background:"#5a6a7a",borderBottom:"1px solid rgba(0,0,0,.25)",
           padding:"5px 10px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",minHeight:36}}>
           <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>가로</span>
           <input type="text" inputMode="numeric" value={parseFloat(sP.wMM.toFixed(1))}
@@ -1416,11 +1505,54 @@ function CardEditor({onReset}){
               onChange={e=>setPhotos(p=>p.map(ph=>ph.id!==sP.id?ph:{...ph,borderColor:e.target.value}))}
               style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
           </div>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>setPhotos(p=>p.map(ph=>ph.id!==sP.id?ph:{...ph,flipX:!ph.flipX}))}
+            style={{padding:"3px 8px",background:sP.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <AlignBtns/>
         </div>
       )}
-      </div>
-      {/* ══ 메인 영역 ══ */}
-      <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:180}}>
+      {sIm&&(
+        <div style={{position:"fixed",top:copyrightH+toolbarH,left:0,right:220,zIndex:190,background:"#5a6a7a",borderBottom:"1px solid rgba(0,0,0,.25)",
+          padding:"5px 10px",display:"flex",alignItems:"center",justifyContent:"center",gap:8,flexWrap:"wrap",minHeight:36}}>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>가로</span>
+          <input type="text" inputMode="numeric" value={parseFloat(sIm.wMM.toFixed(1))}
+            onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>0)setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,wMM:v}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:52,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>×</span>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>세로</span>
+          <input type="text" inputMode="numeric" value={parseFloat(sIm.hMM.toFixed(1))}
+            onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>0)setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,hMM:v}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:52,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>mm</span>
+          {sIm.origWMM&&<button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,wMM:im.origWMM,hMM:im.origHMM}))}
+            title="원본 크기로 복원"
+            style={{padding:"3px 8px",background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↺ 원본크기</button>}
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>각도</span>
+          <input type="text" inputMode="numeric" value={Math.round(sIm.rotate||0)}
+            onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v))setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,rotate:v}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:44,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>°</span>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <button onMouseDown={e=>e.stopPropagation()}
+            onClick={()=>setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,flipX:!im.flipX}))}
+            style={{padding:"3px 8px",background:sIm.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
+              color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <AlignBtns/>
+        </div>
+      )}
+      </div>{/* sticky 끝 */}
+      <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:220}}>
 
         {/* 자 + 카드 영역 */}
         <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
@@ -1443,44 +1575,6 @@ function CardEditor({onReset}){
 
           {/* 자 + 카드 컨테이너 */}
           <div style={{position:"relative",display:"inline-block",flexShrink:0,verticalAlign:"top"}}>
-            {/* 프리셋 슬롯 - 카드 왼쪽 바깥 absolute */}
-            <div style={{position:"absolute",left:-160,bottom:0,
-              display:"flex",flexDirection:"column",gap:5,zIndex:10}}>
-              {[1,2,3,4,5].map(slot=>{
-                const p=presets[slot];
-                return(
-                  <div key={slot} style={{display:"flex",alignItems:"center",gap:3}}>
-                    <button
-                      onClick={()=>{ if(p){ applyPresetSlot(slot); } else { savePreset(slot); } }}
-                      title={p?`P${slot} 불러오기`:`P${slot} — 클릭하여 저장`}
-                      style={{padding:"3px 9px",fontSize:11,borderRadius:4,cursor:"pointer",
-                        background:p?"#3d8bcd":"rgba(0,0,0,.08)",
-                        border:p?"1px solid #2e7bb5":"1px solid rgba(0,0,0,.15)",
-                        color:p?"#fff":"#5d6d7e",fontWeight:p?600:400,whiteSpace:"nowrap"}}>
-                      {`P${slot}`}
-                    </button>
-                    {p&&<button onClick={e=>{e.stopPropagation();setConfirmSlot(slot);}}
-                      title="덮어쓰기"
-                      style={{width:20,height:20,padding:0,background:"#708090",border:"none",
-                        borderRadius:3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                      </svg>
-                    </button>}
-                    {p&&<button onClick={e=>{e.stopPropagation();clearPreset(slot);}}
-                      title="삭제"
-                      style={{width:20,height:20,padding:0,background:"#e74c3c",border:"none",
-                        borderRadius:3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
-                      <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-                        <line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/>
-                      </svg>
-                    </button>}
-                  </div>
-                );
-              })}
-            </div>
-
             {/* 가이드 전체 보이기/숨기기 — 가로 자 왼쪽 */}
             {guides.length>0&&(
               <div
@@ -1609,7 +1703,7 @@ function CardEditor({onReset}){
                       style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,
                         outline:isSel&&!isLocked(sh.id)?"2px solid #9b59b6":"none",
                         cursor:isLocked(sh.id)?"default":"move",zIndex:zIdx(sh.id),boxSizing:"border-box",pointerEvents:isVisible(sh.id)?"auto":"none",
-                        transform:`rotate(${sh.rotate||0}deg)`,transformOrigin:"center center"}}>
+                        transform:`scaleX(${sh.flipX?-1:1}) rotate(${sh.rotate||0}deg)`,transformOrigin:"center center"}}>
                       {shapeEl()}
                     </div>
 
@@ -1629,7 +1723,7 @@ function CardEditor({onReset}){
                       style={{position:"absolute",left:ix,top:iy,width:iw,height:ih,
                         outline:isSel?"2px solid #e67e22":"none",
                         cursor:isLocked(im.id)?"default":"move",zIndex:zIdx(im.id),boxSizing:"border-box",pointerEvents:isVisible(im.id)?"auto":"none",
-                        transform:`rotate(${im.rotate||0}deg)`,transformOrigin:"center center"}}>
+                        transform:`rotate(${im.rotate||0}deg) scaleX(${im.flipX?-1:1})`,transformOrigin:"center center"}}>
                       <img src={im.src} draggable={false} alt=""
                         style={{width:"100%",height:"100%",objectFit:"fill",display:"block",pointerEvents:"none"}}/>
                     </div>
@@ -1652,7 +1746,7 @@ function CardEditor({onReset}){
                       cursor:"move",overflow:"hidden",boxSizing:"border-box",
                       clipPath:ph.shape==="circle"?"ellipse(50% 50% at 50% 50%)":"none",
                       borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`,
-                      transform:`rotate(${ph.rotate||0}deg)`,transformOrigin:"center center",
+                      transform:`rotate(${ph.rotate||0}deg) scaleX(${ph.flipX?-1:1})`,transformOrigin:"center center",
                       zIndex:zIdx(ph.id),pointerEvents:isVisible(ph.id)?"auto":"none",
                       background:"#f8f9fa",
                       display:"flex",alignItems:"center",justifyContent:"center",
@@ -1695,7 +1789,7 @@ function CardEditor({onReset}){
                       outline:isSel?"1.5px dashed #9b59b6":"none",
                       cursor:isLocked(ic.id)?"default":"move",
                       zIndex:zIdx(ic.id),pointerEvents:isVisible(ic.id)?"auto":"none",
-                      transform:`rotate(${ic.rotate||0}deg)`,transformOrigin:"center center",
+                      transform:`rotate(${ic.rotate||0}deg) scaleX(${ic.flipX?-1:1})`,transformOrigin:"center center",
                       boxSizing:"border-box"}}>
                     <IcoSVG type={ic.type} color={ic.color} size={isz*0.8} style={{pointerEvents:"none"}}/>
                   </div>
@@ -1718,7 +1812,7 @@ function CardEditor({onReset}){
                       outline:sel===t.id&&!isEditing&&!isLocked(t.id)?"1.5px dashed #2980b9":"none",
                       background:sel===t.id&&!isEditing&&!isLocked(t.id)?"rgba(41,128,185,.05)":"transparent",
                       padding:"1px 3px",lineHeight:1.4,
-                      transform:`rotate(${rot}deg)`,transformOrigin:"center center"}}>
+                      transform:`rotate(${rot}deg) scaleX(${t.flipX?-1:1})`,transformOrigin:"center center"}}>
                     {isEditing?(
                       <input autoFocus
                         defaultValue={t.text}
@@ -1901,34 +1995,34 @@ function CardEditor({onReset}){
                       <line x1="3" y1="3" x2="10" y2="10"/><line x1="21" y1="21" x2="14" y2="14"/>
                     </svg>
                   </div>
-                  {/* 4면 엣지 핸들 - 귤색 화살표, 바깥쪽 OFF 간격 */}
+                  {/* 4면 엣지 핸들 - 귤색 화살표, 회전 적용 */}
                   {(()=>{
                     const ARR=20, AOFF=ARR/2, GAP=BTN2*0.3+H2;
-                    // edge: {위치, 화살표 SVG path, cursor}
+                    const rotDeg=im.rotate||0;
                     const edges=[
-                      {edge:'right',  x:RULER_SZ+ix+iw+GAP-AOFF,   y:RULER_SZ+iy+ih/2-AOFF, cursor:'ew-resize',
-                        path:'M4 10 L16 10 M11 5 L16 10 L11 15'},
-                      {edge:'left',   x:RULER_SZ+ix-GAP-AOFF,      y:RULER_SZ+iy+ih/2-AOFF, cursor:'ew-resize',
-                        path:'M16 10 L4 10 M9 5 L4 10 L9 15'},
-                      {edge:'bottom', x:RULER_SZ+ix+iw/2-AOFF,     y:RULER_SZ+iy+ih+GAP-AOFF, cursor:'ns-resize',
-                        path:'M10 4 L10 16 M5 11 L10 16 L15 11'},
-                      {edge:'top',    x:RULER_SZ+ix+iw/2-AOFF,     y:RULER_SZ+iy-GAP-AOFF, cursor:'ns-resize',
-                        path:'M10 16 L10 4 M5 9 L10 4 L15 9'},
+                      {edge:'right',  dx:iw/2+GAP, dy:0,         path:'M4 10 L16 10 M11 5 L16 10 L11 15'},
+                      {edge:'left',   dx:-iw/2-GAP,dy:0,         path:'M16 10 L4 10 M9 5 L4 10 L9 15'},
+                      {edge:'bottom', dx:0,         dy:ih/2+GAP, path:'M10 4 L10 16 M5 11 L10 16 L15 11'},
+                      {edge:'top',    dx:0,         dy:-ih/2-GAP,path:'M10 16 L10 4 M5 9 L10 4 L15 9'},
                     ];
-                    return edges.map(({edge,x,y,cursor,path})=>(
-                      <div key={edge} onMouseDown={e=>{
-                          e.stopPropagation();e.preventDefault();
-                          iEdgeDrag.current={id:im.id,edge,startW:im.wMM,startH:im.hMM,
-                            startX:e.clientX,startY:e.clientY,startXMM:im.xMM,startYMM:im.yMM};
-                        }}
-                        style={{position:'absolute',left:x,top:y,width:ARR,height:ARR,
-                          cursor,zIndex:30,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        <svg width={ARR} height={ARR} viewBox="0 0 20 20" fill="none"
-                          stroke="#e67e22" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <path d={path}/>
-                        </svg>
-                      </div>
-                    ));
+                    return edges.map(({edge,dx,dy,path})=>{
+                      const pos=icorner(dx,dy);
+                      return(
+                        <div key={edge} onMouseDown={e=>{
+                            e.stopPropagation();e.preventDefault();
+                            iEdgeDrag.current={id:im.id,edge,startW:im.wMM,startH:im.hMM,
+                              startX:e.clientX,startY:e.clientY,startXMM:im.xMM,startYMM:im.yMM};
+                          }}
+                          style={{position:'absolute',left:pos.x,top:pos.y,width:ARR,height:ARR,
+                            cursor:'crosshair',zIndex:30,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                          <svg width={ARR} height={ARR} viewBox="0 0 20 20" fill="none"
+                            stroke="#e67e22" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                            style={{transform:'rotate('+rotDeg+'deg)',transformOrigin:'center'}}>
+                            <path d={path}/>
+                          </svg>
+                        </div>
+                      );
+                    });
                   })()}
                 </React.Fragment>
               );
@@ -2165,8 +2259,38 @@ function CardEditor({onReset}){
 
           </div>{/* 자 + 카드 컨테이너 끝 */}
 
+          {/* 프리셋 슬롯 — 줌 위 한 줄 */}
+          <div style={{display:"flex",gap:4,alignItems:"center",justifyContent:"center",marginTop:60,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,color:"#5d6d7e",fontWeight:600,flexShrink:0}}>프리셋</span>
+            {[1,2,3,4,5].map(slot=>{
+              const p=presets[slot];
+              return(
+                <div key={slot} style={{display:"flex",alignItems:"center",gap:2}}>
+                  <button onClick={()=>{ if(p){ applyPresetSlot(slot); } else { savePreset(slot); } }}
+                    title={p?`P${slot} 불러오기`:`P${slot} — 클릭하여 저장`}
+                    style={{padding:"3px 9px",fontSize:13,borderRadius:4,cursor:"pointer",
+                      background:p?"#3d8bcd":"rgba(0,0,0,.08)",border:p?"1px solid #2e7bb5":"1px solid rgba(0,0,0,.15)",
+                      color:p?"#fff":"#5d6d7e",fontWeight:p?600:400,whiteSpace:"nowrap"}}>{`P${slot}`}</button>
+                  {p&&<button onClick={e=>{e.stopPropagation();setConfirmSlot(slot);}} title="덮어쓰기"
+                    style={{width:20,height:20,padding:0,background:"#708090",border:"none",borderRadius:3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                  </button>}
+                  {p&&<button onClick={e=>{e.stopPropagation();clearPreset(slot);}} title="삭제"
+                    style={{width:20,height:20,padding:0,background:"#e74c3c",border:"none",borderRadius:3,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                    <svg width="9" height="9" viewBox="0 0 14 14" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="2" y1="2" x2="12" y2="12"/><line x1="12" y1="2" x2="2" y2="12"/>
+                    </svg>
+                  </button>}
+                </div>
+              );
+            })}
+          </div>
+
           {/* 줌 컨트롤 */}
-          <div style={{display:"flex",alignItems:"center",gap:5,marginTop:60,flexWrap:"wrap",justifyContent:"center"}}>
+          <div style={{display:"flex",alignItems:"center",gap:5,marginTop:8,flexWrap:"wrap",justifyContent:"center"}}>
             <button onClick={zOut} disabled={zoom<=ZMIN}
               style={{width:28,height:28,background:"rgba(0,0,0,.08)",border:"1px solid rgba(0,0,0,.15)",
                 color:zoom<=ZMIN?"#bdc3c7":"#5d6d7e",borderRadius:5,cursor:zoom<=ZMIN?"not-allowed":"pointer",
@@ -2476,6 +2600,21 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
 
   const toggleMulti=(id)=>setMultiSel(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
+  const moveLayer=(id, dir)=>{
+    // reversed 기준 위(앞) = layers 배열 뒤쪽 (높은 인덱스)
+    setLayers(prev=>{
+      const idx=prev.findIndex(l=>l.id===id);
+      if(idx<0) return prev;
+      const next=[...prev];
+      if(dir==='up'&&idx<prev.length-1){
+        [next[idx],next[idx+1]]=[next[idx+1],next[idx]];
+      } else if(dir==='down'&&idx>0){
+        [next[idx],next[idx-1]]=[next[idx-1],next[idx]];
+      }
+      return next;
+    });
+  };
+
   // 오브젝트 바운딩 박스 가져오기
   const getBBox=(id)=>{
     const t=texts.find(x=>x.id===id);
@@ -2590,7 +2729,7 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
   const onDragEnd=()=>{dragRef.current=null;setDragIdx(null);setOverIdx(null);};
 
   return(
-    <div style={{position:"fixed",right:0,top:copyrightH,bottom:0,width:180,background:"#1e272e",
+    <div style={{position:"fixed",right:0,top:copyrightH,bottom:0,width:220,background:"#1e272e",
       borderLeft:"1px solid rgba(0,0,0,.3)",
       display:"flex",flexDirection:"column",userSelect:"none",zIndex:99}}>
       <div style={{padding:'4px 10px 4px',fontSize:11,fontWeight:700,color:'rgba(255,255,255,.5)',
@@ -2678,6 +2817,29 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
               <div style={{flex:1,fontSize:11,color:isSel?"#fff":"rgba(255,255,255,.75)",
                 overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
                 {getLabel(l)}
+              </div>
+              {/* 위/아래 이동 */}
+              <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+                <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'up');}}
+                  title="위로"
+                  style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
+                    cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#fff"}
+                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="2,7 5,3 8,7"/>
+                  </svg>
+                </div>
+                <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'down');}}
+                  title="아래로"
+                  style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
+                    cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#fff"}
+                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
+                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="2,3 5,7 8,3"/>
+                  </svg>
+                </div>
               </div>
               {/* 잠금 아이콘 */}
               <div onClick={e=>{e.stopPropagation();toggleLocked(l.id);if(!l.locked&&setSel)setSel(s=>s===l.id?null:s);}}
