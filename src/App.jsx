@@ -63,7 +63,7 @@ const INIT_TEXTS_BIZ = [
   {id:"bt2", xMM:MAR+31, yMM:MAR+5,   text:"대리",        fs:17, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
   {id:"bt3", xMM:MAR+3,  yMM:MAR+16,  text:"디자인팀",    fs:14, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
   {id:"bt4", xMM:MAR+3,  yMM:MAR+24,  text:"mujimuji.purity012@aleeas.com", fs:14, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
-  {id:"bt5", xMM:MAR+3,  yMM:MAR+32,  text:"https://smartstore.naver.com/wg0057", fs:14, color:"#1a2744", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
+  {id:"bt5", xMM:MAR+3,  yMM:MAR+32,  text:"https://newluvbit.carrd.co/", fs:14, color:"#1a2744", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
 ];
 const INIT_LAYERS_BIZ = ()=>[
   ...INIT_TEXTS_BIZ.map(t=>({id:t.id,type:"text",visible:true,locked:false})),
