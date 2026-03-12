@@ -60,10 +60,10 @@ const INIT_TEXTS = [
 // 명함 초기 프리셋 (작업 92×52mm)
 const INIT_TEXTS_BIZ = [
   {id:"bt1", xMM:MAR+3,  yMM:MAR+3,   text:"김  무  지",  fs:23, color:"#1a2744", bold:true,  italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
-  {id:"bt2", xMM:MAR+31, yMM:MAR+5,   text:"대리",        fs:17, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
-  {id:"bt3", xMM:MAR+3,  yMM:MAR+16,  text:"디자인팀",    fs:14, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
+  {id:"bt2", xMM:MAR+31, yMM:MAR+5,   text:"님",        fs:17, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
+  {id:"bt3", xMM:MAR+3,  yMM:MAR+16,  text:"대한민국",    fs:14, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
   {id:"bt4", xMM:MAR+3,  yMM:MAR+24,  text:"mujimuji.purity012@aleeas.com", fs:14, color:"#2d3748", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
-  {id:"bt5", xMM:MAR+3,  yMM:MAR+32,  text:"https://newluvbit.carrd.co/", fs:14, color:"#1a2744", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
+  {id:"bt5", xMM:MAR+3,  yMM:MAR+32,  text:"https://link.inpock.co.kr/newluvbit", fs:14, color:"#1a2744", bold:false, italic:false, rotate:0, font:"'Noto Sans KR',sans-serif"},
 ];
 const INIT_LAYERS_BIZ = ()=>[
   ...INIT_TEXTS_BIZ.map(t=>({id:t.id,type:"text",visible:true,locked:false})),
