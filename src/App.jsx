@@ -11,6 +11,42 @@ const PH   = 45;
 
 let _id=0; const uid=()=>`e${++_id}`;
 
+// 삼각형 라운드 코너 SVG path 생성
+const roundedTrianglePath=(w,h,inset,r)=>{
+  // 세 꼭짓점 (inset 적용)
+  const pts=[
+    {x:w/2, y:inset},          // 상단
+    {x:w-inset, y:h-inset},    // 우하단
+    {x:inset,   y:h-inset},    // 좌하단
+  ];
+  const n=pts.length;
+  let d='';
+  for(let i=0;i<n;i++){
+    const prev=pts[(i+n-1)%n];
+    const cur=pts[i];
+    const next=pts[(i+1)%n];
+    // cur에서 prev/next 방향 단위벡터
+    const d1x=prev.x-cur.x, d1y=prev.y-cur.y, len1=Math.hypot(d1x,d1y);
+    const d2x=next.x-cur.x, d2y=next.y-cur.y, len2=Math.hypot(d2x,d2y);
+    const rr=Math.min(r,len1/2,len2/2);
+    const p1x=cur.x+d1x/len1*rr, p1y=cur.y+d1y/len1*rr;
+    const p2x=cur.x+d2x/len2*rr, p2y=cur.y+d2y/len2*rr;
+    if(i===0) d+=`M${p1x},${p1y}`;
+    else d+=`L${p1x},${p1y}`;
+    d+=`Q${cur.x},${cur.y} ${p2x},${p2y}`;
+  }
+  return d+'Z';
+};
+
+// CRC32 for PNG pHYs chunk
+const crc32=(buf)=>{
+  let c=0xffffffff;
+  const t=new Uint32Array(256);
+  for(let i=0;i<256;i++){let k=i;for(let j=0;j<8;j++)k=k&1?(0xedb88320^(k>>>1)):k>>>1;t[i]=k;}
+  for(let i=0;i<buf.length;i++)c=t[(c^buf[i])&0xff]^(c>>>8);
+  return (c^0xffffffff)|0;
+};
+
 const INIT_TEXTS = [
   {id:"t1", xMM:MAR+2, yMM:MAR+3,  text:"반려묘 카드",  fs:13, color:"#1a2744", bold:true,  italic:false, rotate:0},
   {id:"t2", xMM:MAR+2, yMM:MAR+13, text:"이        름",   fs:13, color:"#2d3748", bold:false, italic:false, rotate:0},
@@ -823,18 +859,50 @@ function CardEditor({onReset}){
         if(sh.flipX) ctx.scale(-1,1);
         ctx.rotate((sh.rotate||0)*Math.PI/180);
         ctx.fillStyle = sh.fill||'#ccc';
+        const stkPx = (sh.strokeW||0)*(DPI/96);
+        const half2 = stkPx/2;
         if(sh.type==='circle'){
-          ctx.beginPath(); ctx.ellipse(0,0,hw,hh,0,0,Math.PI*2); ctx.fill();
+          ctx.beginPath(); ctx.ellipse(0,0,Math.max(0,hw-half2),Math.max(0,hh-half2),0,0,Math.PI*2);
+          ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.stroke();
+          }
         } else if(sh.type==='triangle'){
-          ctx.beginPath(); ctx.moveTo(0,-hh); ctx.lineTo(hw,hh); ctx.lineTo(-hw,hh); ctx.closePath(); ctx.fill();
-        } else {
-          const r=Math.min(sh.radius||0,hw,hh);
+          const th=hh-half2, tw=hw-half2;
+          const rr=sh.radius||0;
           ctx.beginPath();
-          ctx.moveTo(-hw+r,-hh); ctx.lineTo(hw-r,-hh); ctx.arcTo(hw,-hh,hw,-hh+r,r);
-          ctx.lineTo(hw,hh-r);  ctx.arcTo(hw,hh,hw-r,hh,r);
-          ctx.lineTo(-hw+r,hh); ctx.arcTo(-hw,hh,-hw,hh-r,r);
-          ctx.lineTo(-hw,-hh+r);ctx.arcTo(-hw,-hh,-hw+r,-hh,r);
+          if(rr>0){
+            const pts=[{x:0,y:-(th-half2)},{x:tw,y:th},{x:-tw,y:th}];
+            const n3=pts.length;
+            for(let i=0;i<n3;i++){
+              const prev=pts[(i+n3-1)%n3],cur=pts[i],next=pts[(i+1)%n3];
+              const d1x=prev.x-cur.x,d1y=prev.y-cur.y,l1=Math.hypot(d1x,d1y);
+              const d2x=next.x-cur.x,d2y=next.y-cur.y,l2=Math.hypot(d2x,d2y);
+              const rrr=Math.min(rr*(DPI/96),l1/2,l2/2);
+              const p1x=cur.x+d1x/l1*rrr,p1y=cur.y+d1y/l1*rrr;
+              const p2x=cur.x+d2x/l2*rrr,p2y=cur.y+d2y/l2*rrr;
+              if(i===0)ctx.moveTo(p1x,p1y); else ctx.lineTo(p1x,p1y);
+              ctx.quadraticCurveTo(cur.x,cur.y,p2x,p2y);
+            }
+          } else {
+            ctx.moveTo(0,-(th-half2)); ctx.lineTo(tw,th); ctx.lineTo(-tw,th);
+          }
           ctx.closePath(); ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.lineJoin='miter'; ctx.stroke();
+          }
+        } else {
+          const r=Math.min(sh.radius||0,hw-half2,hh-half2);
+          const ihw=hw-half2, ihh=hh-half2;
+          ctx.beginPath();
+          ctx.moveTo(-ihw+r,-ihh); ctx.lineTo(ihw-r,-ihh); ctx.arcTo(ihw,-ihh,ihw,-ihh+r,r);
+          ctx.lineTo(ihw,ihh-r);  ctx.arcTo(ihw,ihh,ihw-r,ihh,r);
+          ctx.lineTo(-ihw+r,ihh); ctx.arcTo(-ihw,ihh,-ihw,ihh-r,r);
+          ctx.lineTo(-ihw,-ihh+r);ctx.arcTo(-ihw,-ihh,-ihw+r,-ihh,r);
+          ctx.closePath(); ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.stroke();
+          }
         }
         ctx.restore();
       }
@@ -862,6 +930,27 @@ function CardEditor({onReset}){
         }
         ctx.clip();
         ctx.drawImage(img,-hw,-hh,P(ph.wMM),P(ph.hMM));
+        if(ph.borderW&&ph.borderW>0){
+          ctx.restore();
+          ctx.save();
+          ctx.translate(P(ph.xMM)+hw, P(ph.yMM)+hh);
+          ctx.rotate((ph.rotate||0)*Math.PI/180);
+          if(ph.flipX) ctx.scale(-1,1);
+          ctx.beginPath();
+          if(ph.shape==='circle'){
+            ctx.ellipse(0,0,hw,hh,0,0,Math.PI*2);
+          } else {
+            const r2=Math.min(ph.radius||0,hw,hh);
+            ctx.moveTo(-hw+r2,-hh); ctx.lineTo(hw-r2,-hh); ctx.arcTo(hw,-hh,hw,-hh+r2,r2);
+            ctx.lineTo(hw,hh-r2);  ctx.arcTo(hw,hh,hw-r2,hh,r2);
+            ctx.lineTo(-hw+r2,hh); ctx.arcTo(-hw,hh,-hw,hh-r2,r2);
+            ctx.lineTo(-hw,-hh+r2);ctx.arcTo(-hw,-hh,-hw+r2,-hh,r2);
+            ctx.closePath();
+          }
+          ctx.strokeStyle=ph.borderColor||'#000';
+          ctx.lineWidth=ph.borderW*(DPI/96);
+          ctx.stroke();
+        }
         ctx.restore();
       }
 
@@ -920,12 +1009,41 @@ function CardEditor({onReset}){
 
     canvas.toBlob(blob => {
       if(!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a   = document.createElement('a');
-      a.href = url; a.download = 'card.png';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); }, 1000);
+      // PNG에 300dpi pHYs 청크 삽입
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const buf = new Uint8Array(ev.target.result);
+        // pHYs 청크: 300dpi = 11811 pixels/meter (300/25.4*1000)
+        const ppm300 = Math.round(300 / 25.4 * 1000); // 11811
+        const phys = new Uint8Array(21);
+        // chunk length (9 bytes data)
+        phys[0]=0;phys[1]=0;phys[2]=0;phys[3]=9;
+        // chunk type "pHYs"
+        phys[4]=0x70;phys[5]=0x48;phys[6]=0x59;phys[7]=0x73;
+        // X pixels per unit (big-endian)
+        phys[8]=(ppm300>>24)&0xff;phys[9]=(ppm300>>16)&0xff;phys[10]=(ppm300>>8)&0xff;phys[11]=ppm300&0xff;
+        // Y pixels per unit
+        phys[12]=(ppm300>>24)&0xff;phys[13]=(ppm300>>16)&0xff;phys[14]=(ppm300>>8)&0xff;phys[15]=ppm300&0xff;
+        // unit: 1 = metre
+        phys[16]=1;
+        // CRC32 of type+data
+        const crcData=new Uint8Array(13);
+        crcData.set(phys.slice(4,17));
+        const crc=crc32(crcData);
+        phys[17]=(crc>>24)&0xff;phys[18]=(crc>>16)&0xff;phys[19]=(crc>>8)&0xff;phys[20]=crc&0xff;
+        // PNG 파일에서 IHDR 청크 다음 위치(33바이트)에 pHYs 삽입
+        const out = new Uint8Array(buf.length + 21);
+        out.set(buf.slice(0,33));
+        out.set(phys, 33);
+        out.set(buf.slice(33), 54);
+        const blob2 = new Blob([out], {type:'image/png'});
+        const url = URL.createObjectURL(blob2);
+        const a = document.createElement('a');
+        a.href=url; a.download='card.png';
+        document.body.appendChild(a); a.click();
+        setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },1000);
+      };
+      reader.readAsArrayBuffer(blob);
     }, 'image/png');
   };
 
@@ -1439,7 +1557,7 @@ function CardEditor({onReset}){
               onChange={e=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,fill:e.target.value}))}
               style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
           </div>
-          {sSh.type==="rect"&&<>
+          {(sSh.type==="rect"||sSh.type==="triangle")&&<>
             <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
             <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>라운드</span>
             {[0,5,10,20].map(r=>(
@@ -1463,6 +1581,29 @@ function CardEditor({onReset}){
             onClick={()=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,flipX:!s.flipX}))}
             style={{padding:"3px 8px",background:sSh.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
               color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>테두리</span>
+          <input type="text" inputMode="numeric" value={sSh.strokeW||0}
+            onChange={e=>{const v=parseFloat(e.target.value);if(!isNaN(v)&&v>=0)setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,strokeW:v,stroke:(!s.stroke||s.stroke==='none')&&v>0?'#000000':s.stroke}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:40,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <div onMouseDown={e=>e.stopPropagation()} style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+            <div onClick={()=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,strokeW:(s.strokeW||0)+1,stroke:(!s.stroke||s.stroke==='none')?'#000000':s.stroke}))}
+              style={{width:16,height:12,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,.15)",borderRadius:"2px 2px 0 0",cursor:"pointer"}}>
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polyline points="2,7 5,3 8,7"/></svg>
+            </div>
+            <div onClick={()=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,strokeW:Math.max(0,(s.strokeW||0)-1)}))}
+              style={{width:16,height:12,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(255,255,255,.15)",borderRadius:"0 0 2px 2px",cursor:"pointer"}}>
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polyline points="2,3 5,7 8,3"/></svg>
+            </div>
+          </div>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>px</span>
+          <div onMouseDown={e=>e.stopPropagation()} style={{position:"relative",width:28,height:24,borderRadius:3,background:sSh.stroke&&sSh.stroke!=="none"?sSh.stroke:"#000000",cursor:"pointer",flexShrink:0,overflow:"hidden"}}>
+            <input type="color" value={sSh.stroke&&sSh.stroke!=="none"?sSh.stroke:"#000000"}
+              onChange={e=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,stroke:e.target.value}))}
+              style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
+          </div>
           <AlignBtns/>
         </>}
       </div>
@@ -1678,20 +1819,25 @@ function CardEditor({onReset}){
               {shapes.filter(sh=>isVisible(sh.id)).map(sh=>{
                 const sx=P(sh.xMM),sy=P(sh.yMM),sw=P(sh.wMM),shh=P(sh.hMM);
                 const isSel=sel===sh.id;
+                const stk=sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none';
+                const half=stk?(sh.strokeW||0)/2:0;
                 const shapeEl=()=>{
                   if(sh.type==="circle") return(
                     <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
-                      <ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sh.fill} stroke={sh.stroke==="none"?"none":sh.stroke} strokeWidth={sh.strokeW||0}/>
+                      <ellipse cx={sw/2} cy={shh/2} rx={Math.max(0,sw/2-half)} ry={Math.max(0,shh/2-half)} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0}/>
                     </svg>
                   );
                   if(sh.type==="triangle") return(
                     <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
-                      <polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sh.fill} stroke={sh.stroke==="none"?"none":sh.stroke} strokeWidth={sh.strokeW||0}/>
+                      {(sh.radius||0)>0
+                        ? <path d={roundedTrianglePath(sw,shh,half,sh.radius||0)} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="miter"/>
+                        : <polygon points={`${sw/2},${half} ${sw-half},${shh-half} ${half},${shh-half}`} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="miter"/>
+                      }
                     </svg>
                   );
                   return(
                     <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
-                      <rect x={0} y={0} width={sw} height={shh} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill} stroke={sh.stroke==="none"?"none":sh.stroke} strokeWidth={sh.strokeW||0}/>
+                      <rect x={half} y={half} width={Math.max(0,sw-sh.strokeW)} height={Math.max(0,shh-sh.strokeW)} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0}/>
                     </svg>
                   );
                 };
