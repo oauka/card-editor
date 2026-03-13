@@ -626,7 +626,7 @@ function CardEditor({onReset}){
       if(sResize.current){
         const {id,startW,startH,startCX,startCY}=sResize.current;
         const dxMM=(cl.clientX-startCX)/ppm, dyMM=(cl.clientY-startCY)/ppm;
-        setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,wMM:Math.max(5,startW+dxMM),hMM:Math.max(5,startH+dyMM)}));
+        setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,wMM:Math.max(2,startW+dxMM),hMM:Math.max(2,startH+dyMM)}));
         return;
       }
       // 요소 드래그
@@ -1114,7 +1114,7 @@ function CardEditor({onReset}){
     const id=uid();
     setSel(id);
     const fill=type==="rect"?"#eb6100":type==="circle"?"#097c25":"#3498db";
-    setShapes(p=>[...p,{id,type,xMM:cs.w/2-10,yMM:cs.h/2-10,wMM:20,hMM:20,fill,stroke:"none",strokeW:0,opacity:1}]);
+    setShapes(p=>[...p,{id,type,xMM:cs.w/2-5,yMM:cs.h/2-5,wMM:10,hMM:10,fill,stroke:"none",strokeW:0,opacity:1}]);
     addLayer(id,"shape");
   };
   const addIcon=(type)=>{
