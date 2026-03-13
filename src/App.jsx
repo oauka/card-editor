@@ -38,6 +38,49 @@ const roundedTrianglePath=(w,h,inset,r)=>{
   return d+'Z';
 };
 
+// N각형 꼭짓점 생성 (중심 0,0)
+const polyPoints=(n,rx,ry,offset=-Math.PI/2)=>
+  Array.from({length:n},(_,i)=>{const a=offset+2*Math.PI*i/n;return{x:rx*Math.cos(a),y:ry*Math.sin(a)};});
+
+// 5각별 꼭짓점 생성 (중심 0,0, innerRatio = 내부 꼭짓점 비율)
+const starPoints=(rx,ry,ir=0.4)=>{
+  const pts=[];
+  for(let i=0;i<10;i++){
+    const a=(i*Math.PI/5)-Math.PI/2;
+    const r=i%2===0;
+    pts.push({x:(r?rx:rx*ir)*Math.cos(a),y:(r?ry:ry*ir)*Math.sin(a)});
+  }
+  return pts;
+};
+
+// 하트 SVG path 문자열 (중심 0,0)
+const heartSVGPath=(hw,hh)=>{
+  const sx=hw/50,sy=hh/42;
+  const t=(x,y)=>`${(x-50)*sx},${(y-42)*sy}`;
+  return `M${t(50,82)}C${t(8,62)} ${t(0,38)} ${t(0,24)}C${t(0,8)} ${t(12,0)} ${t(27,0)}C${t(38,0)} ${t(46,7)} ${t(50,14)}C${t(54,7)} ${t(62,0)} ${t(73,0)}C${t(88,0)} ${t(100,8)} ${t(100,24)}C${t(100,38)} ${t(92,62)} ${t(50,82)}Z`;
+};
+
+// 점 배열 → SVG polygon points 문자열
+const ptsToSVGPoly=(pts)=>pts.map(p=>`${p.x},${p.y}`).join(' ');
+
+// Canvas: 점 배열로 path 그리기
+const ctxPoly=(ctx,pts)=>{ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();};
+
+// Canvas: 하트 path 그리기 (중심 cx,cy)
+const ctxHeart=(ctx,cx,cy,hw,hh)=>{
+  const sx=hw/50,sy=hh/42;
+  const t=(x,y)=>[(x-50)*sx+cx,(y-42)*sy+cy];
+  const p=(x,y)=>t(x,y);
+  ctx.moveTo(...p(50,82));
+  ctx.bezierCurveTo(...p(8,62),...p(0,38),...p(0,24));
+  ctx.bezierCurveTo(...p(0,8),...p(12,0),...p(27,0));
+  ctx.bezierCurveTo(...p(38,0),...p(46,7),...p(50,14));
+  ctx.bezierCurveTo(...p(54,7),...p(62,0),...p(73,0));
+  ctx.bezierCurveTo(...p(88,0),...p(100,8),...p(100,24));
+  ctx.bezierCurveTo(...p(100,38),...p(92,62),...p(50,82));
+  ctx.closePath();
+};
+
 // CRC32 for PNG pHYs chunk
 const crc32=(buf)=>{
   let c=0xffffffff;
@@ -405,9 +448,18 @@ function CardEditor({onReset}){
     const snap = presets[slot];
     if(!snap) return;
     skipHistory.current = true;
-    setTexts(snap.texts); setPhotos(snap.photos); setImages([]);
-    setShapes(snap.shapes); setIcons(snap.icons);
-    setLayers((snap.layers||[]).filter(l=>l.type!=='image')); // 유령 이미지 레이어 방어
+    // ID 재매핑: 프리셋의 기존 ID와 새로 생성되는 uid()가 충돌하지 않도록
+    // 모든 요소의 ID를 새 UID로 교체한다
+    const idMap = {};
+    const remap = (oldId)=>{ if(!idMap[oldId]) idMap[oldId]=uid(); return idMap[oldId]; };
+    const remTexts  = snap.texts.map(t=>({...t, id:remap(t.id)}));
+    const remPhotos = snap.photos.map(ph=>({...ph, id:remap(ph.id)}));
+    const remShapes = snap.shapes.map(sh=>({...sh, id:remap(sh.id)}));
+    const remIcons  = snap.icons.map(ic=>({...ic, id:remap(ic.id)}));
+    const remLayers = (snap.layers||[]).filter(l=>l.type!=='image').map(l=>({...l, id:remap(l.id)}));
+    setTexts(remTexts); setPhotos(remPhotos); setImages([]);
+    setShapes(remShapes); setIcons(remIcons);
+    setLayers(remLayers);
     setCardW(snap.cardW); setCardH(snap.cardH); setCardBg(snap.cardBg); setOrient(snap.orient);
     setCustomW(String(snap.cardW)); setCustomH(String(snap.cardH));
     setSel(null);
@@ -901,6 +953,29 @@ function CardEditor({onReset}){
           if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
             ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.lineJoin='miter'; ctx.stroke();
           }
+        } else if(sh.type==='star'){
+          const spts=starPoints(hw-half2,hh-half2);
+          ctx.beginPath(); ctxPoly(ctx,spts); ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.lineJoin='round'; ctx.stroke();
+          }
+        } else if(sh.type==='heart'){
+          ctx.beginPath(); ctxHeart(ctx,0,0,hw-half2,hh-half2); ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.lineJoin='round'; ctx.stroke();
+          }
+        } else if(sh.type==='pentagon'){
+          const ppts=polyPoints(5,hw-half2,hh-half2);
+          ctx.beginPath(); ctxPoly(ctx,ppts); ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.lineJoin='round'; ctx.stroke();
+          }
+        } else if(sh.type==='hexagon'){
+          const hxpts=polyPoints(6,hw-half2,hh-half2,0);
+          ctx.beginPath(); ctxPoly(ctx,hxpts); ctx.fill();
+          if(sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none'){
+            ctx.strokeStyle=sh.stroke; ctx.lineWidth=stkPx; ctx.lineJoin='round'; ctx.stroke();
+          }
         } else {
           const r=Math.min(sh.radius||0,hw-half2,hh-half2);
           const ihw=hw-half2, ihh=hh-half2;
@@ -1123,7 +1198,8 @@ function CardEditor({onReset}){
   const addShape=(type)=>{
     const id=uid();
     setSel(id);
-    const fill=type==="rect"?"#eb6100":type==="circle"?"#097c25":"#3498db";
+    const SHAPE_FILL={rect:"#eb6100",circle:"#097c25",triangle:"#3498db",star:"#f1c40f",heart:"#e91e8c",pentagon:"#9b59b6",hexagon:"#16a085"};
+    const fill=SHAPE_FILL[type]||"#3498db";
     setShapes(p=>[...p,{id,type,xMM:cs.w/2-5,yMM:cs.h/2-5,wMM:10,hMM:10,fill,stroke:"none",strokeW:0,opacity:1}]);
     addLayer(id,"shape");
   };
@@ -1346,9 +1422,13 @@ function CardEditor({onReset}){
         <Btn onClick={addPhoto}>＋ 사진</Btn>
         <Btn onClick={addImage}>이미지 불러오기</Btn>
         <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={onImageFile}/>
-        <Btn onClick={()=>addShape("rect")}>＋ <svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("circle")}>＋ <svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("triangle")}>＋ <svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("rect")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("circle")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("triangle")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("star")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 8.5,5.5 13,5.5 9.3,8.5 10.5,13 7,10 3.5,13 4.7,8.5 1,5.5 5.5,5.5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("heart")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><path d="M7,12 C1,8 1,3 3.5,2 C5,1.3 6.3,2.2 7,3.5 C7.7,2.2 9,1.3 10.5,2 C13,3 13,8 7,12Z" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("pentagon")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,5.5 10.8,12.5 3.2,12.5 1,5.5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("hexagon")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="10.5,2 13,7 10.5,12 3.5,12 1,7 3.5,2" fill="currentColor"/></svg></Btn>
         <Btn onClick={()=>{setSel(null);setShowIconPicker(v=>!v);}}>＋ 아이콘</Btn>
         <Btn onClick={copyElem} disabled={!sel}>복사</Btn>
         <Btn onClick={()=>setShowPreview(true)}>미리보기</Btn>
@@ -1845,6 +1925,29 @@ function CardEditor({onReset}){
                       }
                     </svg>
                   );
+                  if(sh.type==="star"){
+                    const spts=starPoints(sw/2-half,shh/2-half);
+                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                      <polygon points={ptsToSVGPoly(spts.map(p=>({x:p.x+sw/2,y:p.y+shh/2})))} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
+                    </svg>);
+                  }
+                  if(sh.type==="heart"){
+                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                      <path d={heartSVGPath(sw/2-half,shh/2-half)} transform={`translate(${sw/2},${shh/2})`} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
+                    </svg>);
+                  }
+                  if(sh.type==="pentagon"){
+                    const ppts=polyPoints(5,sw/2-half,shh/2-half);
+                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                      <polygon points={ptsToSVGPoly(ppts.map(p=>({x:p.x+sw/2,y:p.y+shh/2})))} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
+                    </svg>);
+                  }
+                  if(sh.type==="hexagon"){
+                    const hpts=polyPoints(6,sw/2-half,shh/2-half,0);
+                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                      <polygon points={ptsToSVGPoly(hpts.map(p=>({x:p.x+sw/2,y:p.y+shh/2})))} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
+                    </svg>);
+                  }
                   return(
                     <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
                       <rect x={half} y={half} width={Math.max(0,sw-sh.strokeW)} height={Math.max(0,shh-sh.strokeW)} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0}/>
