@@ -261,6 +261,15 @@ const FONT_LIST = [
   {label:"Roboto",         family:"'Roboto',sans-serif",              url:"https://fonts.googleapis.com/css2?family=Roboto&display=swap"},
   {label:"Gelasio",        family:"'Gelasio',serif",                  url:"https://fonts.googleapis.com/css2?family=Gelasio&display=swap"},
   {label:"Italianno",      family:"'Italianno',cursive",              url:"https://fonts.googleapis.com/css2?family=Italianno&display=swap"},
+  {label:"Caveat",         family:"'Caveat',cursive",                 url:"https://fonts.googleapis.com/css2?family=Caveat&display=swap"},
+  {label:"Bodoni Moda",    family:"'Bodoni Moda',serif",              url:"https://fonts.googleapis.com/css2?family=Bodoni+Moda&display=swap"},
+  {label:"Dancing Script", family:"'Dancing Script',cursive",         url:"https://fonts.googleapis.com/css2?family=Dancing+Script&display=swap"},
+  {label:"Pacifico",       family:"'Pacifico',cursive",               url:"https://fonts.googleapis.com/css2?family=Pacifico&display=swap"},
+  {label:"Instrument Serif",family:"'Instrument Serif',serif",        url:"https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap"},
+  {label:"Yellowtail",     family:"'Yellowtail',cursive",             url:"https://fonts.googleapis.com/css2?family=Yellowtail&display=swap"},
+  {label:"Amatic SC",      family:"'Amatic SC',cursive",              url:"https://fonts.googleapis.com/css2?family=Amatic+SC&display=swap"},
+  {label:"Comic Neue",     family:"'Comic Neue',cursive",             url:"https://fonts.googleapis.com/css2?family=Comic+Neue&display=swap"},
+  {label:"Rock Salt",      family:"'Rock Salt',cursive",              url:"https://fonts.googleapis.com/css2?family=Rock+Salt&display=swap"},
   // ── 일본어 ──
   {label:"── 일본어 ──",  family:"",   url:null, divider:true},
   {label:"Noto Sans JP",   family:"'Noto Sans JP',sans-serif",        url:"https://fonts.googleapis.com/css2?family=Noto+Sans+JP&display=swap"},
@@ -385,7 +394,7 @@ function CardEditor({onReset}){
       images: [], // 이미지 파일 제외
       shapes: JSON.parse(JSON.stringify(s.shapes)),
       icons:  JSON.parse(JSON.stringify(s.icons)),
-      layers: JSON.parse(JSON.stringify(s.layers)),
+      layers: JSON.parse(JSON.stringify(s.layers)).filter(l=>l.type!=='image'), // 이미지 레이어 제외
       cardW, cardH, cardBg, orient,
     };
     const updated = {...loadPresets(), [slot]: snap};
@@ -396,8 +405,9 @@ function CardEditor({onReset}){
     const snap = presets[slot];
     if(!snap) return;
     skipHistory.current = true;
-    setTexts(snap.texts); setPhotos(snap.photos); setImages([]/*이미지 제외*/);
-    setShapes(snap.shapes); setIcons(snap.icons); setLayers(snap.layers);
+    setTexts(snap.texts); setPhotos(snap.photos); setImages([]);
+    setShapes(snap.shapes); setIcons(snap.icons);
+    setLayers((snap.layers||[]).filter(l=>l.type!=='image')); // 유령 이미지 레이어 방어
     setCardW(snap.cardW); setCardH(snap.cardH); setCardBg(snap.cardBg); setOrient(snap.orient);
     setCustomW(String(snap.cardW)); setCustomH(String(snap.cardH));
     setSel(null);
