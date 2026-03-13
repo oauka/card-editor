@@ -1869,7 +1869,7 @@ function CardEditor({onReset}){
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
-                overflow:"hidden",cursor:"default",flexShrink:0,
+                overflow:"clip",cursor:"default",flexShrink:0,
                 isolation:"isolate"}}>
 
               {grid&&(
