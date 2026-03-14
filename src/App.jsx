@@ -127,7 +127,8 @@ function Btn({onClick,children,disabled}){
       border:"1px solid rgba(0,0,0,.2)",
       color:disabled?"rgba(255,255,255,.3)":"rgba(255,255,255,.93)",
       borderRadius:4,cursor:disabled?"not-allowed":"pointer",
-      fontSize:12,fontWeight:500,transition:"all .12s",flexShrink:0,lineHeight:1}}>
+      fontSize:12,fontWeight:500,transition:"all .12s",flexShrink:0,lineHeight:1,
+      display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
     {children}
   </button>;
 }
@@ -1422,13 +1423,13 @@ function CardEditor({onReset}){
         <Btn onClick={addPhoto}>＋ 사진</Btn>
         <Btn onClick={addImage}>이미지 불러오기</Btn>
         <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={onImageFile}/>
-        <Btn onClick={()=>addShape("rect")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("circle")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("triangle")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("star")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 8.5,5.5 13,5.5 9.3,8.5 10.5,13 7,10 3.5,13 4.7,8.5 1,5.5 5.5,5.5" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("heart")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><path d="M7,12 C1,8 1,3 3.5,2 C5,1.3 6.3,2.2 7,3.5 C7.7,2.2 9,1.3 10.5,2 C13,3 13,8 7,12Z" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("pentagon")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,5.5 10.8,12.5 3.2,12.5 1,5.5" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("hexagon")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="10.5,2 13,7 10.5,12 3.5,12 1,7 3.5,2" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("rect")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("circle")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("triangle")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("star")}><svg width="17" height="17" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="7,0.5 8.7,5 13.5,5 9.6,8.2 11,13 7,10.2 3,13 4.4,8.2 0.5,5 5.3,5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("heart")}><svg width="17" height="17" viewBox="0 0 14 14" style={{display:"block"}}><path d="M7,12.5 C0.5,8.5 0.5,2.5 3.5,1.5 C5,1 6.3,2 7,3.5 C7.7,2 9,1 10.5,1.5 C13.5,2.5 13.5,8.5 7,12.5Z" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("pentagon")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="7,0.5 13.5,5 11,13.5 3,13.5 0.5,5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("hexagon")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="10.5,1.5 13.5,7 10.5,12.5 3.5,12.5 0.5,7 3.5,1.5" fill="currentColor"/></svg></Btn>
         <Btn onClick={()=>{setSel(null);setShowIconPicker(v=>!v);}}>＋ 아이콘</Btn>
         <Btn onClick={copyElem} disabled={!sel}>복사</Btn>
         <Btn onClick={()=>setShowPreview(true)}>미리보기</Btn>
@@ -1572,6 +1573,7 @@ function CardEditor({onReset}){
             <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>내용</span>
             <input value={sT.text} onChange={e=>upd(sT.id,"text",e.target.value)}
               onMouseDown={e=>e.stopPropagation()}
+              onPaste={e=>e.stopPropagation()}
               style={{padding:"3px 7px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
                 color:"#fff",borderRadius:3,fontSize:12,outline:"none",minWidth:120}}/>
           </div>
@@ -1805,7 +1807,7 @@ function CardEditor({onReset}){
           </div>
 
           {/* 자 + 카드 컨테이너 */}
-          <div style={{position:"relative",display:"inline-block",flexShrink:0,verticalAlign:"top"}}>
+          <div style={{position:"relative",display:"inline-block",flexShrink:0,verticalAlign:"top",contain:"layout"}}>
             {/* 가이드 전체 보이기/숨기기 — 가로 자 왼쪽 */}
             {guides.length>0&&(
               <div
@@ -1870,7 +1872,7 @@ function CardEditor({onReset}){
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
                 overflow:"clip",cursor:"default",flexShrink:0,
-                isolation:"isolate"}}>
+                isolation:"isolate",contain:"layout"}}>
 
               {grid&&(
                 <svg data-no-capture="1" style={{position:"absolute",inset:0,pointerEvents:"none",width:CW,height:CH}}>
@@ -2078,6 +2080,7 @@ function CardEditor({onReset}){
                         onChange={e=>{upd(t.id,"text",e.target.value);e.target.style.width="1px";e.target.style.width=e.target.scrollWidth+"px";}}
                         onBlur={()=>setEditing(null)}
                         onKeyDown={e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();setEditing(null);}e.stopPropagation();}}
+                        onPaste={e=>e.stopPropagation()}
                         onClick={e=>e.stopPropagation()}
                         onMouseDown={e=>e.stopPropagation()}
                         ref={el=>{if(el){el.style.width="1px";el.style.width=el.scrollWidth+"px";}}}
@@ -2425,7 +2428,7 @@ function CardEditor({onReset}){
             {texts.filter(t=>sel===t.id&&editing!==t.id).map(t=>{
               const domEl=document.querySelector(`[data-elem-id="${t.id}"]`);
               let tw,th;
-              if(domEl){tw=domEl.offsetWidth;th=domEl.offsetHeight;}
+              if(domEl){tw=Math.min(domEl.offsetWidth,CW);th=domEl.offsetHeight;}
               else{tw=t.text.length*t.fs*FSC*0.6+6;th=t.fs*FSC*1.4+2;}
               const tx=RULER_SZ+P(t.xMM), ty=RULER_SZ+P(t.yMM);
               const cx=tx+tw/2, cy=ty+th/2;
