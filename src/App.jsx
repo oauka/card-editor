@@ -363,6 +363,8 @@ function CardEditor({onReset}){
   const [images,      setImages]      = useState([]);
   const [shapes,      setShapes]      = useState([]);
   const [icons,       setIcons]       = useState([]);
+  const [groups,      setGroups]      = useState([]); // [{id,name,memberIds,collapsed}]
+  const rGroups = useRef([]); rGroups.current = groups;
   const [showIconPicker, setShowIconPicker] = useState(false);
   const toolbarRef = useRef(null);
   const [toolbarH, setToolbarH] = useState(46);
@@ -383,7 +385,7 @@ function CardEditor({onReset}){
 
   // ── 현재 상태 ref (항상 최신값 유지, closure 문제 해결)
   const stateRef = useRef({});
-  stateRef.current = {texts,photos,images,shapes,icons,layers};
+  stateRef.current = {texts,photos,images,shapes,icons,layers,groups};
 
   const pushHistory = useCallback(()=>{
     if(skipHistory.current) return;
@@ -395,6 +397,7 @@ function CardEditor({onReset}){
       shapes: JSON.parse(JSON.stringify(s.shapes)),
       icons:  JSON.parse(JSON.stringify(s.icons)),
       layers: JSON.parse(JSON.stringify(s.layers)),
+      groups: JSON.parse(JSON.stringify(s.groups||[])),
     };
     // 직전 스냅샷과 동일하면 중복 저장 안 함
     const last = historyRef.current[histIdxRef.current];
@@ -413,6 +416,7 @@ function CardEditor({onReset}){
     skipHistory.current = true;
     setTexts(snap.texts); setPhotos(snap.photos); setImages(snap.images);
     setShapes(snap.shapes); setIcons(snap.icons); setLayers(snap.layers);
+    setGroups(snap.groups||[]);
     setSel(null);
     setTimeout(()=>{ skipHistory.current=false; },50);
   },[]);
@@ -424,6 +428,7 @@ function CardEditor({onReset}){
     skipHistory.current = true;
     setTexts(snap.texts); setPhotos(snap.photos); setImages(snap.images);
     setShapes(snap.shapes); setIcons(snap.icons); setLayers(snap.layers);
+    setGroups(snap.groups||[]);
     setSel(null);
     setTimeout(()=>{ skipHistory.current=false; },50);
   },[]);
@@ -438,6 +443,7 @@ function CardEditor({onReset}){
       shapes: JSON.parse(JSON.stringify(s.shapes)),
       icons:  JSON.parse(JSON.stringify(s.icons)),
       layers: JSON.parse(JSON.stringify(s.layers)).filter(l=>l.type!=='image'), // 이미지 레이어 제외
+      groups: JSON.parse(JSON.stringify(s.groups||[])),
       cardW, cardH, cardBg, orient,
     };
     const updated = {...loadPresets(), [slot]: snap};
@@ -457,9 +463,11 @@ function CardEditor({onReset}){
     const remShapes = snap.shapes.map(sh=>({...sh, id:remap(sh.id)}));
     const remIcons  = snap.icons.map(ic=>({...ic, id:remap(ic.id)}));
     const remLayers = (snap.layers||[]).filter(l=>l.type!=='image').map(l=>({...l, id:remap(l.id)}));
+    const remGroups = (snap.groups||[]).map(g=>({...g, id:remap(g.id), memberIds:g.memberIds.map(remap)}));
     setTexts(remTexts); setPhotos(remPhotos); setImages([]);
     setShapes(remShapes); setIcons(remIcons);
     setLayers(remLayers);
+    setGroups(remGroups);
     setCardW(snap.cardW); setCardH(snap.cardH); setCardBg(snap.cardBg); setOrient(snap.orient);
     setCustomW(String(snap.cardW)); setCustomH(String(snap.cardH));
     setSel(null);
@@ -479,7 +487,7 @@ function CardEditor({onReset}){
     clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(()=>{ pushHistory(); }, 300);
     return ()=>clearTimeout(debounceTimer.current);
-  },[texts,photos,images,shapes,icons,layers]);
+  },[texts,photos,images,shapes,icons,layers,groups]);
 
   const isVisible=(id)=>{const l=layers.find(l=>l.id===id);return l?l.visible!==false:true;};
   const isLocked=(id)=>{const l=layers.find(l=>l.id===id);return l?l.locked===true:false;};
@@ -582,26 +590,29 @@ function CardEditor({onReset}){
 
       // 이미지 회전
       if(iRotate.current){
-        const {id,cx,cy,startAngle,startRotate}=iRotate.current;
+        const {id,cx,cy,startAngle,startRotate,groupSnaps}=iRotate.current;
         const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
         let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
         setImages(p=>p.map(im=>im.id!==id?im:{...im,rotate:startRotate+d}));
+        if(groupSnaps) applyGroupRotate(groupSnaps,d);
         return;
       }
       // 텍스트 회전
       if(tRotate.current){
-        const {id,cx,cy,startAngle,startRotate}=tRotate.current;
+        const {id,cx,cy,startAngle,startRotate,groupSnaps}=tRotate.current;
         const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
         let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
         setTexts(p=>p.map(t=>t.id!==id?t:{...t,rotate:startRotate+d}));
+        if(groupSnaps) applyGroupRotate(groupSnaps,d);
         return;
       }
       // 텍스트 리사이즈
       if(tResize.current){
-        const {id,startFs,startCY,startCX}=tResize.current;
+        const {id,startFs,startCY,startCX,groupSnaps}=tResize.current;
         const d=(cl.clientX-startCX+cl.clientY-startCY)/2;
         const newFs=Math.max(4,Math.round(startFs+d/2));
         setTexts(p=>p.map(t=>t.id!==id?t:{...t,fs:newFs}));
+        if(groupSnaps&&startFs>0) applyGroupResize(groupSnaps,newFs/startFs,newFs/startFs);
         return;
       }
       // 가이드 드래그
@@ -616,25 +627,24 @@ function CardEditor({onReset}){
       }
       // 사진 리사이즈
       if(rDrag.current){
-        const {id,startW,startH,startCX,startCY}=rDrag.current;
+        const {id,startW,startH,startCX,startCY,groupSnaps}=rDrag.current;
         const aspect=startW/startH;
         const dxMM=(cl.clientX-startCX)/ppm, dyMM=(cl.clientY-startCY)/ppm;
         const delta=(Math.abs(dxMM)>Math.abs(dyMM)?dxMM:dyMM);
         const newW=Math.max(8,startW+delta);
         const newH=newW/aspect;
-        setPhotos(p=>p.map(ph=>{
-          if(ph.id!==id) return ph;
-          return {...ph,wMM:newW,hMM:newH};
-        }));
+        setPhotos(p=>p.map(ph=>ph.id!==id?ph:{...ph,wMM:newW,hMM:newH}));
+        if(groupSnaps) applyGroupResize(groupSnaps,newW/startW,newH/startH);
         return;
       }
       // 이미지 리사이즈
       if(iResize.current){
-        const {id,startW,startH,startCX,startCY,aspect}=iResize.current;
+        const {id,startW,startH,startCX,startCY,aspect,groupSnaps}=iResize.current;
         const dxMM=(cl.clientX-startCX)/ppm;
         const newW=Math.max(5,startW+dxMM);
         const newH=newW/aspect;
         setImages(p=>p.map(im=>im.id!==id?im:{...im,wMM:newW,hMM:newH}));
+        if(groupSnaps) applyGroupResize(groupSnaps,newW/startW,newH/startH);
         return;
       }
       // 이미지 엣지 리사이즈 (4면, 비율 무관)
@@ -655,40 +665,47 @@ function CardEditor({onReset}){
       }
       // 아이콘 회전
       if(iconRotate.current){
-        const {id,cx,cy,startAngle,startRotate}=iconRotate.current;
+        const {id,cx,cy,startAngle,startRotate,groupSnaps}=iconRotate.current;
         const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
         let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
         setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,rotate:(startRotate||0)+d}));
+        if(groupSnaps) applyGroupRotate(groupSnaps,d);
         return;
       }
       // 아이콘 리사이즈
       if(iconResize.current){
-        const {id,startSz,startCX,startCY}=iconResize.current;
+        const {id,startSz,startCX,startCY,groupSnaps}=iconResize.current;
         const d=(cl.clientX-startCX+cl.clientY-startCY)/2;
-        setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,sizeMM:Math.max(3,startSz+d/BASE)}));
+        const newSz=Math.max(3,startSz+d/BASE);
+        setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,sizeMM:newSz}));
+        if(groupSnaps) applyGroupResize(groupSnaps,newSz/startSz,newSz/startSz);
         return;
       }
       // 사진 회전
       if(phRotate.current){
-        const {id,cx,cy,startAngle,startRotate}=phRotate.current;
+        const {id,cx,cy,startAngle,startRotate,groupSnaps}=phRotate.current;
         const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
         let dv=cur-startAngle; if(dv>180)dv-=360; if(dv<-180)dv+=360;
         setPhotos(p=>p.map(ph=>ph.id!==id?ph:{...ph,rotate:(startRotate||0)+dv}));
+        if(groupSnaps) applyGroupRotate(groupSnaps,dv);
         return;
       }
       // 도형 회전
       if(shRotate.current){
-        const {id,cx,cy,startAngle,startRotate}=shRotate.current;
+        const {id,cx,cy,startAngle,startRotate,groupSnaps}=shRotate.current;
         const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
         let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
         setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,rotate:(startRotate||0)+d}));
+        if(groupSnaps) applyGroupRotate(groupSnaps,d);
         return;
       }
       // 도형 리사이즈
       if(sResize.current){
-        const {id,startW,startH,startCX,startCY}=sResize.current;
+        const {id,startW,startH,startCX,startCY,groupSnaps}=sResize.current;
         const dxMM=(cl.clientX-startCX)/ppm, dyMM=(cl.clientY-startCY)/ppm;
-        setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,wMM:Math.max(2,startW+dxMM),hMM:Math.max(2,startH+dyMM)}));
+        const newW=Math.max(2,startW+dxMM), newH=Math.max(2,startH+dyMM);
+        setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,wMM:newW,hMM:newH}));
+        if(groupSnaps) applyGroupResize(groupSnaps,newW/startW,newH/startH);
         return;
       }
       // 요소 드래그
@@ -705,8 +722,8 @@ function CardEditor({onReset}){
         const yMM=startYMM+dyPx/ppm;
         // 스냅 — 좌/우 엣지, 상/하 엣지만 체크 (센터 제외)
         let sx=xMM, sy=yMM;
+        const {wMM:ew=0,hMM:eh=0}=eDrag.current;
         if(rSnapEnabled.current){
-          const {wMM:ew=0,hMM:eh=0}=eDrag.current;
           let bestDx=SNAP_DIST, bestDy=SNAP_DIST;
           for(const g of rGuides.current.filter(gd=>gd.visible)){
             if(g.type==="v"){
@@ -728,6 +745,18 @@ function CardEditor({onReset}){
         else if(type==="image") setImages(p=>p.map(im=>im.id!==id?im:{...im,xMM:sx,yMM:sy}));
         else if(type==="shape") setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,xMM:sx,yMM:sy}));
         else if(type==="icon") setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,xMM:sx,yMM:sy}));
+        // 그룹 멤버 함께 이동
+        const {groupOffsets}=eDrag.current;
+        if(groupOffsets&&groupOffsets.length>0){
+          const mIds={text:new Set(),photo:new Set(),image:new Set(),shape:new Set(),icon:new Set()};
+          const mPos={};
+          groupOffsets.forEach(m=>{mIds[m.type]?.add(m.id);mPos[m.id]={x:sx+m.dxMM,y:sy+m.dyMM};});
+          if(mIds.text.size)   setTexts(p=>p.map(t=>mIds.text.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+          if(mIds.photo.size)  setPhotos(p=>p.map(t=>mIds.photo.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+          if(mIds.image.size)  setImages(p=>p.map(t=>mIds.image.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+          if(mIds.shape.size)  setShapes(p=>p.map(t=>mIds.shape.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+          if(mIds.icon.size)   setIcons(p=>p.map(t=>mIds.icon.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+        }
       }
     };
     const onUp=()=>{
@@ -791,7 +820,78 @@ function CardEditor({onReset}){
     } else if(type==="shape"||type==="photo"||type==="image"){ wMM=elem.wMM; hMM=elem.hMM;
     } else if(type==="icon"){ wMM=elem.sizeMM; hMM=elem.sizeMM; }
     setSel(id);
-    eDrag.current={id,type,startXMM:elem.xMM,startYMM:elem.yMM,startCX:cl.clientX,startCY:cl.clientY,wMM,hMM};
+    // 그룹 멤버 오프셋 계산
+    const grp = rGroups.current.find(g=>g.memberIds.includes(id));
+    let groupOffsets = null;
+    if(grp){
+      const allElems = [
+        ...stateRef.current.texts.map(t=>({id:t.id,type:'text',xMM:t.xMM,yMM:t.yMM})),
+        ...stateRef.current.photos.map(t=>({id:t.id,type:'photo',xMM:t.xMM,yMM:t.yMM})),
+        ...stateRef.current.images.map(t=>({id:t.id,type:'image',xMM:t.xMM,yMM:t.yMM})),
+        ...stateRef.current.shapes.map(t=>({id:t.id,type:'shape',xMM:t.xMM,yMM:t.yMM})),
+        ...stateRef.current.icons.map(t=>({id:t.id,type:'icon',xMM:t.xMM,yMM:t.yMM})),
+      ];
+      groupOffsets = grp.memberIds.filter(mid=>mid!==id).map(mid=>{
+        const el=allElems.find(e=>e.id===mid); if(!el) return null;
+        return {id:mid,type:el.type,dxMM:el.xMM-elem.xMM,dyMM:el.yMM-elem.yMM};
+      }).filter(Boolean);
+    }
+    eDrag.current={id,type,startXMM:elem.xMM,startYMM:elem.yMM,startCX:cl.clientX,startCY:cl.clientY,wMM,hMM,groupOffsets};
+  };
+
+  // 그룹 리사이즈용: 멤버들의 시작 크기 스냅샷
+  const buildGroupSnaps=(primaryId)=>{
+    const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId));
+    if(!grp) return null;
+    const s=stateRef.current;
+    return grp.memberIds.filter(mid=>mid!==primaryId).map(mid=>{
+      const t=s.texts.find(x=>x.id===mid);   if(t)  return {id:mid,type:'text', startFs:t.fs};
+      const ph=s.photos.find(x=>x.id===mid); if(ph) return {id:mid,type:'photo',startW:ph.wMM,startH:ph.hMM};
+      const im=s.images.find(x=>x.id===mid); if(im) return {id:mid,type:'image',startW:im.wMM,startH:im.hMM};
+      const sh=s.shapes.find(x=>x.id===mid); if(sh) return {id:mid,type:'shape',startW:sh.wMM,startH:sh.hMM};
+      const ic=s.icons.find(x=>x.id===mid);  if(ic) return {id:mid,type:'icon', startSz:ic.sizeMM};
+      return null;
+    }).filter(Boolean);
+  };
+
+  // 스케일 비율로 멤버 크기 변경
+  const applyGroupResize=(snaps, scaleX, scaleY)=>{
+    if(!snaps||snaps.length===0) return;
+    snaps.forEach(m=>{
+      if(m.type==='text')  setTexts(p=>p.map(t=>t.id!==m.id?t:{...t,fs:Math.max(4,Math.round(m.startFs*scaleX))}));
+      if(m.type==='photo') setPhotos(p=>p.map(t=>t.id!==m.id?t:{...t,wMM:Math.max(8,m.startW*scaleX),hMM:Math.max(8,m.startH*scaleY)}));
+      if(m.type==='image') setImages(p=>p.map(t=>t.id!==m.id?t:{...t,wMM:Math.max(5,m.startW*scaleX),hMM:Math.max(5,m.startH*scaleY)}));
+      if(m.type==='shape') setShapes(p=>p.map(t=>t.id!==m.id?t:{...t,wMM:Math.max(2,m.startW*scaleX),hMM:Math.max(2,m.startH*scaleY)}));
+      if(m.type==='icon')  setIcons(p=>p.map(t=>t.id!==m.id?t:{...t,sizeMM:Math.max(3,m.startSz*scaleX)}));
+    });
+  };
+
+  // 그룹 회전용: 멤버들의 시작 회전값 스냅샷
+  const buildGroupRotateSnaps=(primaryId)=>{
+    const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId));
+    if(!grp) return null;
+    const s=stateRef.current;
+    return grp.memberIds.filter(mid=>mid!==primaryId).map(mid=>{
+      const t=s.texts.find(x=>x.id===mid);   if(t)  return {id:mid,type:'text', startRotate:t.rotate||0};
+      const ph=s.photos.find(x=>x.id===mid); if(ph) return {id:mid,type:'photo',startRotate:ph.rotate||0};
+      const im=s.images.find(x=>x.id===mid); if(im) return {id:mid,type:'image',startRotate:im.rotate||0};
+      const sh=s.shapes.find(x=>x.id===mid); if(sh) return {id:mid,type:'shape',startRotate:sh.rotate||0};
+      const ic=s.icons.find(x=>x.id===mid);  if(ic) return {id:mid,type:'icon', startRotate:ic.rotate||0};
+      return null;
+    }).filter(Boolean);
+  };
+
+  // delta 각도만큼 멤버들 회전
+  const applyGroupRotate=(snaps, delta)=>{
+    if(!snaps||snaps.length===0) return;
+    snaps.forEach(m=>{
+      const r=m.startRotate+delta;
+      if(m.type==='text')  setTexts(p=>p.map(t=>t.id!==m.id?t:{...t,rotate:r}));
+      if(m.type==='photo') setPhotos(p=>p.map(t=>t.id!==m.id?t:{...t,rotate:r}));
+      if(m.type==='image') setImages(p=>p.map(t=>t.id!==m.id?t:{...t,rotate:r}));
+      if(m.type==='shape') setShapes(p=>p.map(t=>t.id!==m.id?t:{...t,rotate:r}));
+      if(m.type==='icon')  setIcons(p=>p.map(t=>t.id!==m.id?t:{...t,rotate:r}));
+    });
   };
 
   const upd=(id,k,v)=>setTexts(p=>p.map(t=>t.id!==id?t:{...t,[k]:v}));
@@ -1258,7 +1358,7 @@ function CardEditor({onReset}){
   // ── 빈 템플릿 ──
   const applyBlankTemplate=()=>{
     setTexts([]);setPhotos([]);setImages([]);setShapes([]);setIcons([]);
-    setLayers([]);setSel(null);setEditing(null);
+    setLayers([]);setGroups([]);setSel(null);setEditing(null);
   };
 
   const sIcon = icons.find(ic=>ic.id===sel);
@@ -1909,7 +2009,7 @@ function CardEditor({onReset}){
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
-                overflow:"visible",cursor:"default",flexShrink:0,
+                overflow:"hidden",cursor:"default",flexShrink:0,
                 isolation:"isolate"}}>
 
               {grid&&(
@@ -2211,7 +2311,7 @@ function CardEditor({onReset}){
                       phRotate.current={id:ph.id,
                         cx:cr.left+px+pw/2, cy:cr.top+py+ph_h/2,
                         startAngle:Math.atan2(e.clientY-(cr.top+py+ph_h/2),e.clientX-(cr.left+px+pw/2))*180/Math.PI,
-                        startRotate:ph.rotate||0};
+                        startRotate:ph.rotate||0, groupSnaps:buildGroupRotateSnaps(ph.id)};
                     }}
                     style={{position:"absolute",left:pRot.x,top:pRot.y,
                       width:BTN,height:BTN,background:"#2980b9",borderRadius:"50%",
@@ -2224,7 +2324,7 @@ function CardEditor({onReset}){
                   </div>
                   {/* 리사이즈 - 우하단 바깥 */}
                   <div onMouseDown={e=>{e.stopPropagation();e.preventDefault();
-                      rDrag.current={id:ph.id,startW:ph.wMM,startH:ph.hMM,startCX:e.clientX,startCY:e.clientY};}}
+                      rDrag.current={id:ph.id,startW:ph.wMM,startH:ph.hMM,startCX:e.clientX,startCY:e.clientY,startXMM:ph.xMM,startYMM:ph.yMM,groupSnaps:buildGroupSnaps(ph.id)};}}
                     style={{position:"absolute",left:pRes.x,top:pRes.y,
                       width:BTN,height:BTN,background:"#27ae60",borderRadius:"50%",
                       cursor:"nwse-resize",zIndex:30,
@@ -2277,7 +2377,7 @@ function CardEditor({onReset}){
                       const cr=cardRef.current.getBoundingClientRect();
                       iRotate.current={id:im.id,cx:cr.left+ix+iw/2,cy:cr.top+iy+ih/2,
                         startAngle:Math.atan2(e.clientY-(cr.top+iy+ih/2),e.clientX-(cr.left+ix+iw/2))*180/Math.PI,
-                        startRotate:im.rotate||0};
+                        startRotate:im.rotate||0, groupSnaps:buildGroupRotateSnaps(im.id)};
                     }}
                     style={{position:"absolute",left:iRot.x,top:iRot.y,width:BTN2,height:BTN2,
                       background:"#2980b9",borderRadius:"50%",cursor:"grab",zIndex:30,
@@ -2288,7 +2388,7 @@ function CardEditor({onReset}){
                   </div>
                   <div onMouseDown={e=>{
                       e.stopPropagation();e.preventDefault();
-                      iResize.current={id:im.id,startW:im.wMM,startH:im.hMM,startCX:e.clientX,startCY:e.clientY,aspect:im.aspect};
+                      iResize.current={id:im.id,startW:im.wMM,startH:im.hMM,startCX:e.clientX,startCY:e.clientY,aspect:im.aspect,startXMM:im.xMM,startYMM:im.yMM,groupSnaps:buildGroupSnaps(im.id)};
                     }}
                     style={{position:"absolute",left:iRes.x,top:iRes.y,width:BTN2,height:BTN2,
                       background:"#27ae60",borderRadius:"50%",cursor:"nwse-resize",zIndex:30,
@@ -2376,7 +2476,7 @@ function CardEditor({onReset}){
                       const acx=cr.left+sx+sw/2, acy=cr.top+sy+shh/2;
                       shRotate.current={id:sh.id,cx:acx,cy:acy,
                         startAngle:Math.atan2(e.clientY-acy,e.clientX-acx)*180/Math.PI,
-                        startRotate:sh.rotate||0};
+                        startRotate:sh.rotate||0, groupSnaps:buildGroupRotateSnaps(sh.id)};
                     }}
                     style={{position:"absolute",left:rot2.x,top:rot2.y,width:BTN,height:BTN,
                       background:"#2980b9",borderRadius:"50%",cursor:"grab",zIndex:30,
@@ -2386,7 +2486,7 @@ function CardEditor({onReset}){
                     </svg>
                   </div>
                   <div onMouseDown={e=>{e.stopPropagation();e.preventDefault();
-                      sResize.current={id:sh.id,startW:sh.wMM,startH:sh.hMM,startCX:e.clientX,startCY:e.clientY};}}
+                      sResize.current={id:sh.id,startW:sh.wMM,startH:sh.hMM,startCX:e.clientX,startCY:e.clientY,startXMM:sh.xMM,startYMM:sh.yMM,groupSnaps:buildGroupSnaps(sh.id)};}}
                     style={{position:"absolute",left:res.x,top:res.y,width:BTN,height:BTN,
                       background:"#27ae60",borderRadius:"50%",cursor:"nwse-resize",zIndex:30,
                       display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.35)"}}>
@@ -2442,7 +2542,7 @@ function CardEditor({onReset}){
                       const acx=cr.left+ix+isz/2, acy=cr.top+iy+isz/2;
                       iconRotate.current={id:ic.id,cx:acx,cy:acy,
                         startAngle:Math.atan2(e.clientY-acy,e.clientX-acx)*180/Math.PI,
-                        startRotate:ic.rotate||0};
+                        startRotate:ic.rotate||0, groupSnaps:buildGroupRotateSnaps(ic.id)};
                     }}
                     style={{position:"absolute",left:rot2.x,top:rot2.y,width:BTN,height:BTN,
                       background:"#2980b9",borderRadius:"50%",cursor:"grab",zIndex:30,
@@ -2452,8 +2552,7 @@ function CardEditor({onReset}){
                     </svg>
                   </div>
                   <div onMouseDown={e=>{e.stopPropagation();e.preventDefault();
-                      iconResize.current={id:ic.id,startSz:ic.sizeMM,startCX:e.clientX,startCY:e.clientY};}}
-                    style={{position:"absolute",left:res.x,top:res.y,width:BTN,height:BTN,
+                      iconResize.current={id:ic.id,startSz:ic.sizeMM,startCX:e.clientX,startCY:e.clientY,startXMM:ic.xMM,startYMM:ic.yMM,groupSnaps:buildGroupSnaps(ic.id)};}}                    style={{position:"absolute",left:res.x,top:res.y,width:BTN,height:BTN,
                       background:"#27ae60",borderRadius:"50%",cursor:"nwse-resize",zIndex:30,
                       display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.35)"}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2516,7 +2615,7 @@ function CardEditor({onReset}){
                       const acx=cr.left+P(t.xMM)+tw/2, acy=cr.top+P(t.yMM)+th/2;
                       tRotate.current={id:t.id,cx:acx,cy:acy,
                         startAngle:Math.atan2(e.clientY-acy,e.clientX-acx)*180/Math.PI,
-                        startRotate:t.rotate||0};
+                        startRotate:t.rotate||0, groupSnaps:buildGroupRotateSnaps(t.id)};
                     }}
                     style={{position:"absolute",left:rotPos.x,top:rotPos.y,
                       width:BTN,height:BTN,background:"#2980b9",borderRadius:"50%",
@@ -2529,7 +2628,7 @@ function CardEditor({onReset}){
                   {/* 리사이즈 — 우하단 바깥 */}
                   <div onMouseDown={e=>{
                       e.stopPropagation(); e.preventDefault();
-                      tResize.current={id:t.id,startFs:t.fs,startCY:e.clientY,startCX:e.clientX};
+                      tResize.current={id:t.id,startFs:t.fs,startCY:e.clientY,startCX:e.clientX,startXMM:t.xMM,startYMM:t.yMM,groupSnaps:buildGroupSnaps(t.id)};
                     }}
                     style={{position:"absolute",left:resPos.x,top:resPos.y,
                       width:BTN,height:BTN,background:"#27ae60",borderRadius:"50%",
@@ -2736,6 +2835,7 @@ function CardEditor({onReset}){
           layers={layers} setLayers={setLayers}
           texts={texts} photos={photos} images={images} shapes={shapes} icons={icons}
           ppm={BASE*scale*zoom} setTexts={setTexts} setPhotos={setPhotos} setImages={setImages} setShapes={setShapes} setIcons={setIcons}
+          groups={groups} setGroups={setGroups}
           sel={sel} setSel={setSel}
           editBarActive={!!(sT||sSh||sIcon)} pickerActive={showIconPicker}
           onDelete={(id)=>{
@@ -2744,6 +2844,7 @@ function CardEditor({onReset}){
             setImages(p=>p.filter(i=>i.id!==id));
             setShapes(p=>p.filter(s=>s.id!==id));
             setIcons(p=>p.filter(i=>i.id!==id));
+            setGroups(p=>p.map(g=>({...g,memberIds:g.memberIds.filter(m=>m!==id)})).filter(g=>g.memberIds.length>=2));
             removeLayer(id); setSel(null);
           }}
         />
@@ -2898,13 +2999,41 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardB
 
 
 /* ════ 레이어 패널 ════ */
-function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTexts,setPhotos,setImages,setShapes,setIcons,ppm=BASE,sel,setSel,editBarActive,pickerActive=false,toolbarH=46,copyrightH=32,onDelete}){
+function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTexts,setPhotos,setImages,setShapes,setIcons,groups=[],setGroups,ppm=BASE,sel,setSel,editBarActive,pickerActive=false,toolbarH=46,copyrightH=32,onDelete}){
   const dragRef=useRef(null);
   const [dragIdx,setDragIdx]=useState(null);
   const [overIdx,setOverIdx]=useState(null);
   const [multiSel,setMultiSel]=useState([]);
 
   const toggleMulti=(id)=>setMultiSel(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
+
+  // 그룹 생성
+  const doGroup=()=>{
+    if(multiSel.length<2) return;
+    // 이미 같은 그룹에 있는 멤버가 있으면 그 그룹에 병합
+    const gid=`g${Date.now()}`;
+    setGroups(p=>{
+      // 선택된 id가 속한 기존 그룹들 제거하고 새 그룹으로 통합
+      const existingMembers=new Set();
+      p.forEach(g=>{g.memberIds.forEach(m=>{ if(multiSel.includes(m)) existingMembers.add(m); });});
+      const filtered=p.filter(g=>!g.memberIds.some(m=>multiSel.includes(m)));
+      return [...filtered,{id:gid,name:'그룹',memberIds:[...multiSel],collapsed:false}];
+    });
+    setMultiSel([]);
+  };
+
+  // 그룹 해제
+  const doUngroup=(gid)=>{
+    setGroups(p=>p.filter(g=>g.id!==gid));
+  };
+
+  // 그룹 접기/펼치기
+  const toggleCollapse=(gid)=>{
+    setGroups(p=>p.map(g=>g.id!==gid?g:{...g,collapsed:!g.collapsed}));
+  };
+
+  // 멤버가 속한 그룹 찾기
+  const getGroup=(id)=>groups.find(g=>g.memberIds.includes(id));
 
   const moveLayer=(id, dir)=>{
     // reversed 기준 위(앞) = layers 배열 뒤쪽 (높은 인덱스)
@@ -3124,6 +3253,11 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
               </button>
             ))}
           </div>
+          <button onClick={doGroup}
+            style={{fontSize:10,color:'#f39c12',background:'rgba(243,156,18,.12)',border:'1px solid rgba(243,156,18,.3)',
+              borderRadius:4,cursor:'pointer',padding:'3px 0',fontWeight:600}}>
+            📦 그룹으로 묶기
+          </button>
           <button onClick={()=>setMultiSel([])}
             style={{fontSize:9,color:'rgba(255,255,255,.35)',background:'none',border:'none',cursor:'pointer',padding:'1px 0'}}>
             선택 해제
@@ -3131,112 +3265,146 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
         </div>
       )}
       <div style={{flex:1,overflowY:"auto"}}>
-        {reversed.map((l,revIdx)=>{
-          const isSel=sel===l.id;
-          const isDrag=dragIdx===revIdx;
-          const isOver=overIdx===revIdx&&dragIdx!==revIdx;
-          return(
-            <div key={l.id}
-              draggable
-              onDragStart={e=>onDragStart(e,revIdx)}
-              onDragOver={e=>onDragOver(e,revIdx)}
-              onDrop={e=>onDrop(e,revIdx)}
-              onDragEnd={onDragEnd}
-              onClick={()=>{if(!l.locked)setSel(l.id);}}
-              style={{display:"flex",alignItems:"center",gap:6,
-                padding:"5px 8px",
-                background:isSel?"rgba(52,152,219,.25)":isDrag?"rgba(255,255,255,.04)":"transparent",
-                borderTop:isOver?"2px solid #3498db":"2px solid transparent",
-                cursor:l.locked?"default":"pointer",
-                opacity:l.visible?1:0.45,
-                transition:"background .1s"}}>
-              {/* 체크박스 */}
-              <div onClick={e=>{e.stopPropagation();toggleMulti(l.id);}}
-                title="다중 선택"
-                style={{flexShrink:0,width:14,height:14,border:`1.5px solid ${multiSel.includes(l.id)?'#3498db':'rgba(255,255,255,.2)'}`,
-                  borderRadius:3,background:multiSel.includes(l.id)?'#3498db':'transparent',
-                  cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                {multiSel.includes(l.id)&&<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>}
-              </div>
-              {/* 눈 아이콘 */}
-              <div onClick={e=>{e.stopPropagation();toggleVisible(l.id);}}
-                title={l.visible?"숨기기":"보이기"}
-                style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
-                  justifyContent:"center",cursor:"pointer",borderRadius:3,
-                  color:l.visible?"rgba(255,255,255,.8)":"rgba(255,255,255,.25)"}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  {l.visible
-                    ?<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
-                    :<><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
-                  }
-                </svg>
-              </div>
-              {/* 썸네일 */}
-              <div style={{flexShrink:0,width:28,height:28,background:"rgba(255,255,255,.08)",
-                borderRadius:3,overflow:"hidden",display:"flex",alignItems:"center",
-                justifyContent:"center",border:isSel?"1px solid #3498db":"1px solid transparent"}}>
-                {getThumb(l)}
-              </div>
-              {/* 이름 */}
-              <div style={{flex:1,fontSize:11,color:isSel?"#fff":"rgba(255,255,255,.75)",
-                overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                {getLabel(l)}
-              </div>
-              {/* 위/아래 이동 */}
-              <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
-                <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'up');}}
-                  title="위로"
-                  style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
-                    cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.color="#fff"}
-                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="2,7 5,3 8,7"/>
+        {/* 그룹 헤더 렌더링 */}
+        {(()=>{
+          const rendered=new Set();
+          const rows=[];
+          const revLayers=[...layers].reverse();
+          revLayers.forEach((l,revIdx)=>{
+            const grp=getGroup(l.id);
+            if(grp){
+              // 그룹 헤더 (처음 등장할 때 한 번만)
+              if(!rendered.has(grp.id)){
+                rendered.add(grp.id);
+                rows.push(
+                  <div key={'grp-'+grp.id} style={{display:'flex',alignItems:'center',gap:5,
+                    padding:'3px 8px 3px 6px',background:'rgba(243,156,18,.1)',
+                    borderBottom:'1px solid rgba(243,156,18,.2)',borderTop:'1px solid rgba(243,156,18,.2)'}}>
+                    <span style={{fontSize:10,cursor:'pointer',userSelect:'none',color:'rgba(255,255,255,.5)'}}
+                      onClick={()=>toggleCollapse(grp.id)}>
+                      {grp.collapsed?'▶':'▼'}
+                    </span>
+                    <span style={{fontSize:10,color:'#f39c12',fontWeight:600,flex:1}}>📦 {grp.name}</span>
+                    <button onClick={()=>doUngroup(grp.id)}
+                      title="그룹 해제"
+                      style={{fontSize:9,color:'rgba(255,255,255,.4)',background:'none',border:'none',
+                        cursor:'pointer',padding:'1px 4px',borderRadius:3,lineHeight:1}}>
+                      해제
+                    </button>
+                  </div>
+                );
+              }
+              if(grp.collapsed) return; // 접힌 그룹은 멤버 숨김
+            }
+            const isSel=sel===l.id;
+            const isDrag=dragIdx===revIdx;
+            const isOver=overIdx===revIdx&&dragIdx!==revIdx;
+            const inGroup=!!grp;
+            rows.push(
+              <div key={l.id}
+                draggable
+                onDragStart={e=>onDragStart(e,revIdx)}
+                onDragOver={e=>onDragOver(e,revIdx)}
+                onDrop={e=>onDrop(e,revIdx)}
+                onDragEnd={onDragEnd}
+                onClick={()=>{if(!l.locked)setSel(l.id);}}
+                style={{display:"flex",alignItems:"center",gap:6,
+                  padding:"5px 8px",
+                  paddingLeft:inGroup?16:8,
+                  background:isSel?"rgba(52,152,219,.25)":isDrag?"rgba(255,255,255,.04)":"transparent",
+                  borderTop:isOver?"2px solid #3498db":"2px solid transparent",
+                  cursor:l.locked?"default":"pointer",
+                  opacity:l.visible?1:0.45,
+                  transition:"background .1s"}}>
+                {/* 체크박스 */}
+                <div onClick={e=>{e.stopPropagation();toggleMulti(l.id);}}
+                  title="다중 선택"
+                  style={{flexShrink:0,width:14,height:14,border:`1.5px solid ${multiSel.includes(l.id)?'#3498db':'rgba(255,255,255,.2)'}`,
+                    borderRadius:3,background:multiSel.includes(l.id)?'#3498db':'transparent',
+                    cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {multiSel.includes(l.id)&&<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>}
+                </div>
+                {/* 눈 아이콘 */}
+                <div onClick={e=>{e.stopPropagation();toggleVisible(l.id);}}
+                  title={l.visible?"숨기기":"보이기"}
+                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
+                    justifyContent:"center",cursor:"pointer",borderRadius:3,
+                    color:l.visible?"rgba(255,255,255,.8)":"rgba(255,255,255,.25)"}}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {l.visible
+                      ?<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                      :<><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                    }
                   </svg>
                 </div>
-                <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'down');}}
-                  title="아래로"
-                  style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
-                    cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.color="#fff"}
-                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
-                  <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="2,3 5,7 8,3"/>
+                {/* 썸네일 */}
+                <div style={{flexShrink:0,width:28,height:28,background:"rgba(255,255,255,.08)",
+                  borderRadius:3,overflow:"hidden",display:"flex",alignItems:"center",
+                  justifyContent:"center",border:isSel?"1px solid #3498db":"1px solid transparent"}}>
+                  {getThumb(l)}
+                </div>
+                {/* 이름 */}
+                <div style={{flex:1,fontSize:11,color:isSel?"#fff":"rgba(255,255,255,.75)",
+                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                  {getLabel(l)}
+                </div>
+                {/* 위/아래 이동 */}
+                <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
+                  <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'up');}}
+                    title="위로"
+                    style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
+                      cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.color="#fff"}
+                    onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
+                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="2,7 5,3 8,7"/>
+                    </svg>
+                  </div>
+                  <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'down');}}
+                    title="아래로"
+                    style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
+                      cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
+                    onMouseEnter={e=>e.currentTarget.style.color="#fff"}
+                    onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
+                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="2,3 5,7 8,3"/>
+                    </svg>
+                  </div>
+                </div>
+                {/* 잠금 아이콘 */}
+                <div onClick={e=>{e.stopPropagation();toggleLocked(l.id);if(!l.locked&&setSel)setSel(s=>s===l.id?null:s);}}
+                  title={l.locked?"잠금 해제":"잠금"}
+                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
+                    justifyContent:"center",cursor:"pointer",borderRadius:3,
+                    color:l.locked?"#e74c3c":"rgba(255,255,255,.2)"}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    {l.locked
+                      ?<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>
+                      :<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>
+                    }
+                  </svg>
+                </div>
+                {/* 휴지통 */}
+                <div onClick={e=>{e.stopPropagation();onDelete&&onDelete(l.id);}}
+                  title="삭제"
+                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
+                    justifyContent:"center",cursor:"pointer",borderRadius:3,
+                    color:"rgba(255,255,255,.18)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#e74c3c"}
+                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.18)"}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+                    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                   </svg>
                 </div>
               </div>
-              {/* 잠금 아이콘 */}
-              <div onClick={e=>{e.stopPropagation();toggleLocked(l.id);if(!l.locked&&setSel)setSel(s=>s===l.id?null:s);}}
-                title={l.locked?"잠금 해제":"잠금"}
-                style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
-                  justifyContent:"center",cursor:"pointer",borderRadius:3,
-                  color:l.locked?"#e74c3c":"rgba(255,255,255,.2)"}}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  {l.locked
-                    ?<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>
-                    :<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>
-                  }
-                </svg>
-              </div>
-              {/* 휴지통 */}
-              <div onClick={e=>{e.stopPropagation();onDelete&&onDelete(l.id);}}
-                title="삭제"
-                style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
-                  justifyContent:"center",cursor:"pointer",borderRadius:3,
-                  color:"rgba(255,255,255,.18)",transition:"color .15s"}}
-                onMouseEnter={e=>e.currentTarget.style.color="#e74c3c"}
-                onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.18)"}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-                  <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
-                </svg>
-              </div>
-            </div>
-          );
-        })}
+            );
+          });
+          return rows;
+        })()}
       </div>
     </div>
   );
