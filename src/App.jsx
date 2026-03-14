@@ -127,8 +127,7 @@ function Btn({onClick,children,disabled}){
       border:"1px solid rgba(0,0,0,.2)",
       color:disabled?"rgba(255,255,255,.3)":"rgba(255,255,255,.93)",
       borderRadius:4,cursor:disabled?"not-allowed":"pointer",
-      fontSize:12,fontWeight:500,transition:"all .12s",flexShrink:0,lineHeight:1,
-      display:"inline-flex",alignItems:"center",justifyContent:"center"}}>
+      fontSize:12,fontWeight:500,transition:"all .12s",flexShrink:0,lineHeight:1}}>
     {children}
   </button>;
 }
@@ -906,6 +905,7 @@ function CardEditor({onReset}){
         const img = await loadImg(im.src);
         if(!img) continue;
         ctx.save();
+        ctx.globalAlpha = im.opacity??1;
         ctx.translate(P(im.xMM)+P(im.wMM)/2, P(im.yMM)+P(im.hMM)/2);
         ctx.rotate((im.rotate||0)*Math.PI/180);
         if(im.flipX) ctx.scale(-1,1);
@@ -918,6 +918,7 @@ function CardEditor({onReset}){
         if(!sh) continue;
         const hw=P(sh.wMM)/2, hh=P(sh.hMM)/2;
         ctx.save();
+        ctx.globalAlpha = sh.opacity??1;
         ctx.translate(P(sh.xMM)+hw, P(sh.yMM)+hh);
         if(sh.flipX) ctx.scale(-1,1);
         ctx.rotate((sh.rotate||0)*Math.PI/180);
@@ -1048,6 +1049,7 @@ function CardEditor({onReset}){
         const wgt  = t.bold   ? '700'    : '400';
         const sty  = t.italic ? 'italic' : 'normal';
         ctx.save();
+        ctx.globalAlpha = t.opacity??1;
         ctx.translate(P(t.xMM), P(t.yMM));
         ctx.rotate((t.rotate||0)*Math.PI/180);
         if(t.flipX) ctx.scale(-1,1);
@@ -1423,13 +1425,13 @@ function CardEditor({onReset}){
         <Btn onClick={addPhoto}>＋ 사진</Btn>
         <Btn onClick={addImage}>이미지 불러오기</Btn>
         <input ref={imgFileRef} type="file" accept="image/*" style={{display:"none"}} onChange={onImageFile}/>
-        <Btn onClick={()=>addShape("rect")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("circle")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("triangle")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("star")}><svg width="17" height="17" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="7,0.5 8.7,5 13.5,5 9.6,8.2 11,13 7,10.2 3,13 4.4,8.2 0.5,5 5.3,5" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("heart")}><svg width="17" height="17" viewBox="0 0 14 14" style={{display:"block"}}><path d="M7,12.5 C0.5,8.5 0.5,2.5 3.5,1.5 C5,1 6.3,2 7,3.5 C7.7,2 9,1 10.5,1.5 C13.5,2.5 13.5,8.5 7,12.5Z" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("pentagon")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="7,0.5 13.5,5 11,13.5 3,13.5 0.5,5" fill="currentColor"/></svg></Btn>
-        <Btn onClick={()=>addShape("hexagon")}><svg width="15" height="15" viewBox="0 0 14 14" style={{display:"block"}}><polygon points="10.5,1.5 13.5,7 10.5,12.5 3.5,12.5 0.5,7 3.5,1.5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("rect")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><rect x="1" y="1" width="12" height="12" rx="1" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("circle")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><ellipse cx="7" cy="7" rx="6" ry="6" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("triangle")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,13 1,13" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("star")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 8.5,5.5 13,5.5 9.3,8.5 10.5,13 7,10 3.5,13 4.7,8.5 1,5.5 5.5,5.5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("heart")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><path d="M7,12 C1,8 1,3 3.5,2 C5,1.3 6.3,2.2 7,3.5 C7.7,2.2 9,1.3 10.5,2 C13,3 13,8 7,12Z" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("pentagon")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="7,1 13,5.5 10.8,12.5 3.2,12.5 1,5.5" fill="currentColor"/></svg></Btn>
+        <Btn onClick={()=>addShape("hexagon")}><svg width="11" height="11" viewBox="0 0 14 14" style={{display:"inline",verticalAlign:"middle"}}><polygon points="10.5,2 13,7 10.5,12 3.5,12 1,7 3.5,2" fill="currentColor"/></svg></Btn>
         <Btn onClick={()=>{setSel(null);setShowIconPicker(v=>!v);}}>＋ 아이콘</Btn>
         <Btn onClick={copyElem} disabled={!sel}>복사</Btn>
         <Btn onClick={()=>setShowPreview(true)}>미리보기</Btn>
@@ -1610,6 +1612,18 @@ function CardEditor({onReset}){
             onClick={()=>upd(sT.id,"flipX",!sT.flipX)}
             style={{padding:"3px 8px",background:sT.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
               color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>불투명도</span>
+          <input type="range" min={0} max={100} value={Math.round((sT.opacity??1)*100)}
+            onChange={e=>upd(sT.id,"opacity",Number(e.target.value)/100)}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:70,accentColor:"#fff",cursor:"pointer"}}/>
+          <input type="text" inputMode="numeric" value={Math.round((sT.opacity??1)*100)}
+            onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));upd(sT.id,"opacity",v/100);}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:36,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>%</span>
           <AlignBtns/>
         </>}
       </div>
@@ -1696,6 +1710,18 @@ function CardEditor({onReset}){
               onChange={e=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,stroke:e.target.value}))}
               style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
           </div>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>불투명도</span>
+          <input type="range" min={0} max={100} value={Math.round((sSh.opacity??1)*100)}
+            onChange={e=>setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,opacity:Number(e.target.value)/100}))}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:70,accentColor:"#fff",cursor:"pointer"}}/>
+          <input type="text" inputMode="numeric" value={Math.round((sSh.opacity??1)*100)}
+            onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setShapes(p=>p.map(s=>s.id!==sSh.id?s:{...s,opacity:v/100}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:36,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>%</span>
           <AlignBtns/>
         </>}
       </div>
@@ -1781,6 +1807,18 @@ function CardEditor({onReset}){
             onClick={()=>setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,flipX:!im.flipX}))}
             style={{padding:"3px 8px",background:sIm.flipX?"rgba(255,255,255,.35)":"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.25)",
               color:"#fff",borderRadius:3,cursor:"pointer",fontSize:12,flexShrink:0}}>↔ 반전</button>
+          <div style={{width:1,height:20,background:"rgba(255,255,255,.2)",flexShrink:0}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.7)"}}>불투명도</span>
+          <input type="range" min={0} max={100} value={Math.round((sIm.opacity??1)*100)}
+            onChange={e=>setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,opacity:Number(e.target.value)/100}))}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:70,accentColor:"#fff",cursor:"pointer"}}/>
+          <input type="text" inputMode="numeric" value={Math.round((sIm.opacity??1)*100)}
+            onChange={e=>{const v=Math.min(100,Math.max(0,parseInt(e.target.value)||0));setImages(p=>p.map(im=>im.id!==sIm.id?im:{...im,opacity:v/100}));}}
+            onMouseDown={e=>e.stopPropagation()}
+            style={{width:36,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
+              color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>%</span>
           <AlignBtns/>
         </div>
       )}
@@ -1871,8 +1909,8 @@ function CardEditor({onReset}){
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
-                overflow:"clip",cursor:"default",flexShrink:0,
-                isolation:"isolate",contain:"layout"}}>
+                overflow:"visible",cursor:"default",flexShrink:0,
+                isolation:"isolate"}}>
 
               {grid&&(
                 <svg data-no-capture="1" style={{position:"absolute",inset:0,pointerEvents:"none",width:CW,height:CH}}>
@@ -1915,12 +1953,12 @@ function CardEditor({onReset}){
                 const half=stk?(sh.strokeW||0)/2:0;
                 const shapeEl=()=>{
                   if(sh.type==="circle") return(
-                    <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    <svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       <ellipse cx={sw/2} cy={shh/2} rx={Math.max(0,sw/2-half)} ry={Math.max(0,shh/2-half)} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0}/>
                     </svg>
                   );
                   if(sh.type==="triangle") return(
-                    <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    <svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       {(sh.radius||0)>0
                         ? <path d={roundedTrianglePath(sw,shh,half,sh.radius||0)} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="miter"/>
                         : <polygon points={`${sw/2},${half} ${sw-half},${shh-half} ${half},${shh-half}`} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="miter"/>
@@ -1929,29 +1967,29 @@ function CardEditor({onReset}){
                   );
                   if(sh.type==="star"){
                     const spts=starPoints(sw/2-half,shh/2-half);
-                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    return(<svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       <polygon points={ptsToSVGPoly(spts.map(p=>({x:p.x+sw/2,y:p.y+shh/2})))} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
                     </svg>);
                   }
                   if(sh.type==="heart"){
-                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    return(<svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       <path d={heartSVGPath(sw/2-half,shh/2-half)} transform={`translate(${sw/2},${shh/2})`} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
                     </svg>);
                   }
                   if(sh.type==="pentagon"){
                     const ppts=polyPoints(5,sw/2-half,shh/2-half);
-                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    return(<svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       <polygon points={ptsToSVGPoly(ppts.map(p=>({x:p.x+sw/2,y:p.y+shh/2})))} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
                     </svg>);
                   }
                   if(sh.type==="hexagon"){
                     const hpts=polyPoints(6,sw/2-half,shh/2-half,0);
-                    return(<svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    return(<svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       <polygon points={ptsToSVGPoly(hpts.map(p=>({x:p.x+sw/2,y:p.y+shh/2})))} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0} strokeLinejoin="round"/>
                     </svg>);
                   }
                   return(
-                    <svg width={sw} height={shh} style={{display:"block",pointerEvents:"none"}}>
+                    <svg width={sw} height={shh} overflow="visible" style={{display:"block",pointerEvents:"none"}}>
                       <rect x={half} y={half} width={Math.max(0,sw-sh.strokeW)} height={Math.max(0,shh-sh.strokeW)} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill} stroke={stk?sh.stroke:"none"} strokeWidth={stk?sh.strokeW:0}/>
                     </svg>
                   );
@@ -1964,6 +2002,7 @@ function CardEditor({onReset}){
                       style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,
                         outline:isSel&&!isLocked(sh.id)?"2px solid #9b59b6":"none",
                         cursor:isLocked(sh.id)?"default":"move",zIndex:zIdx(sh.id),boxSizing:"border-box",pointerEvents:isVisible(sh.id)?"auto":"none",
+                        opacity:sh.opacity??1,
                         transform:`scaleX(${sh.flipX?-1:1}) rotate(${sh.rotate||0}deg)`,transformOrigin:"center center"}}>
                       {shapeEl()}
                     </div>
@@ -1984,6 +2023,7 @@ function CardEditor({onReset}){
                       style={{position:"absolute",left:ix,top:iy,width:iw,height:ih,
                         outline:isSel?"2px solid #e67e22":"none",
                         cursor:isLocked(im.id)?"default":"move",zIndex:zIdx(im.id),boxSizing:"border-box",pointerEvents:isVisible(im.id)?"auto":"none",
+                        opacity:im.opacity??1,
                         transform:`rotate(${im.rotate||0}deg) scaleX(${im.flipX?-1:1})`,transformOrigin:"center center"}}>
                       <img src={im.src} draggable={false} alt=""
                         style={{width:"100%",height:"100%",objectFit:"fill",display:"block",pointerEvents:"none"}}/>
@@ -2004,7 +2044,7 @@ function CardEditor({onReset}){
                     onDoubleClick={e=>{if(isLocked(ph.id))return;e.stopPropagation();if(ph.src)openCropModal(ph);else document.getElementById(inputId)?.click();}}
                     style={{position:"absolute",left:P(ph.xMM),top:P(ph.yMM),
                       width:P(ph.wMM),height:P(ph.hMM),
-                      cursor:"move",overflow:"hidden",boxSizing:"border-box",
+                      cursor:"move",overflow:ph.shape==="circle"?"visible":"hidden",boxSizing:"border-box",
                       clipPath:ph.shape==="circle"?"ellipse(50% 50% at 50% 50%)":"none",
                       borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`,
                       transform:`rotate(${ph.rotate||0}deg) scaleX(${ph.flipX?-1:1})`,transformOrigin:"center center",
@@ -2073,6 +2113,7 @@ function CardEditor({onReset}){
                       outline:sel===t.id&&!isEditing&&!isLocked(t.id)?"1.5px dashed #2980b9":"none",
                       background:sel===t.id&&!isEditing&&!isLocked(t.id)?"rgba(41,128,185,.05)":"transparent",
                       padding:"1px 3px",lineHeight:1.4,
+                      opacity:t.opacity??1,
                       transform:`rotate(${rot}deg) scaleX(${t.flipX?-1:1})`,transformOrigin:"center center"}}>
                     {isEditing?(
                       <input autoFocus
@@ -2790,7 +2831,8 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardB
         {images.map(im=>(
           <div key={im.id} style={{position:"absolute",left:P(im.xMM),top:P(im.yMM),
             width:P(im.wMM),height:P(im.hMM),
-            transform:`rotate(${im.rotate||0}deg)`,transformOrigin:"center center",overflow:"hidden"}}>
+            transform:`rotate(${im.rotate||0}deg)`,transformOrigin:"center center",overflow:"hidden",
+            opacity:im.opacity??1}}>
             <img src={im.src} alt="" draggable={false}
               style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
           </div>
@@ -2798,17 +2840,17 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardB
         {shapes.map(sh=>{
           const sx=P(sh.xMM),sy=P(sh.yMM),sw=P(sh.wMM),shh=P(sh.hMM);
           if(sh.type==="circle") return(
-            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block"}}>
+            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"}}>
               <ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sh.fill}/>
             </svg>
           );
           if(sh.type==="triangle") return(
-            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block"}}>
+            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"}}>
               <polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sh.fill}/>
             </svg>
           );
           return(
-            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block"}}>
+            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"}}>
               <rect x={0} y={0} width={sw} height={shh} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill}/>
             </svg>
           );
@@ -2831,7 +2873,8 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardB
               fontSize:t.fs*FSC,color:t.color,
               fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
               textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",whiteSpace:"pre",lineHeight:1.4,pointerEvents:"none",
-              transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center"}}>
+              transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center",
+              opacity:t.opacity??1}}>
               {t.text}
             </div>
           );
@@ -2841,7 +2884,8 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardB
           return(
             <div key={ic.id} style={{position:"absolute",left:P(ic.xMM),top:P(ic.yMM),
               width:isz,height:isz,display:"flex",alignItems:"center",justifyContent:"center",
-              pointerEvents:"none",transform:`rotate(${ic.rotate||0}deg)`,transformOrigin:"center center"}}>
+              pointerEvents:"none",transform:`rotate(${ic.rotate||0}deg)`,transformOrigin:"center center",
+              opacity:ic.opacity??1}}>
               <IcoSVG type={ic.type} color={ic.color} size={isz*0.8}/>
             </div>
           );
@@ -2922,6 +2966,41 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
     });
 
     // 각 setter에 한번만 호출 (forEach 대신 전체 배열을 한번에 처리)
+    setTexts(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
+    setPhotos(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
+    setImages(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
+    setShapes(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
+    setIcons(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
+  };
+
+  const doDistribute=(axis)=>{
+    if(multiSel.length<3) return;
+    const boxes=multiSel.map(id=>({id,...getBBox(id)})).filter(b=>b&&b.xMM!==undefined);
+    if(boxes.length<3) return;
+    const posMap={};
+    if(axis==='h'){
+      const sorted=[...boxes].sort((a,b)=>a.xMM-b.xMM);
+      const totalSpan=(sorted[sorted.length-1].xMM+sorted[sorted.length-1].wMM)-sorted[0].xMM;
+      const totalW=sorted.reduce((s,b)=>s+b.wMM,0);
+      const gap=(totalSpan-totalW)/(sorted.length-1);
+      let cursor=sorted[0].xMM+sorted[0].wMM;
+      sorted.forEach((b,i)=>{
+        if(i===0||i===sorted.length-1){posMap[b.id]={x:b.xMM,y:b.yMM};return;}
+        posMap[b.id]={x:cursor+gap,y:b.yMM};
+        cursor=cursor+gap+b.wMM;
+      });
+    } else {
+      const sorted=[...boxes].sort((a,b)=>a.yMM-b.yMM);
+      const totalSpan=(sorted[sorted.length-1].yMM+sorted[sorted.length-1].hMM)-sorted[0].yMM;
+      const totalH=sorted.reduce((s,b)=>s+b.hMM,0);
+      const gap=(totalSpan-totalH)/(sorted.length-1);
+      let cursor=sorted[0].yMM+sorted[0].hMM;
+      sorted.forEach((b,i)=>{
+        if(i===0||i===sorted.length-1){posMap[b.id]={x:b.xMM,y:b.yMM};return;}
+        posMap[b.id]={x:b.xMM,y:cursor+gap};
+        cursor=cursor+gap+b.hMM;
+      });
+    }
     setTexts(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
     setPhotos(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
     setImages(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
@@ -3018,6 +3097,30 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
                   stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round">
                   <path d={path}/>
                 </svg>
+              </button>
+            ))}
+          </div>
+          <div style={{display:'flex',gap:3,justifyContent:'center'}}>
+            {[
+              {axis:'h', title:'가로 간격 균등',
+               el:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <rect x="1" y="7" width="5" height="10" rx="1"/><rect x="10" y="5" width="4" height="14" rx="1"/><rect x="18" y="7" width="5" height="10" rx="1"/>
+                 <line x1="6" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="18" y2="12"/>
+               </svg>},
+              {axis:'v', title:'세로 간격 균등',
+               el:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <rect x="7" y="1" width="10" height="5" rx="1"/><rect x="5" y="10" width="14" height="4" rx="1"/><rect x="7" y="18" width="10" height="5" rx="1"/>
+                 <line x1="12" y1="6" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/>
+               </svg>},
+            ].map(({axis,title,el})=>(
+              <button key={axis} onClick={()=>doDistribute(axis)} title={title}
+                disabled={multiSel.length<3}
+                style={{width:56,height:26,background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.15)',
+                  borderRadius:4,cursor:multiSel.length<3?'not-allowed':'pointer',
+                  opacity:multiSel.length<3?0.4:1,
+                  display:'flex',alignItems:'center',justifyContent:'center',gap:4,flexShrink:0}}>
+                {el}
+                <span style={{fontSize:9,color:'rgba(255,255,255,.7)',whiteSpace:'nowrap'}}>{axis==='h'?'가로':'세로'}</span>
               </button>
             ))}
           </div>
