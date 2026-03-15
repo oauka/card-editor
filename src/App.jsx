@@ -367,6 +367,8 @@ function CardEditor({onReset}){
   const rGroups = useRef([]); rGroups.current = groups;
   const [multiSel,    setMultiSel]    = useState([]); // 레이어 패널 체크박스 선택
   const rMultiSel = useRef([]); rMultiSel.current = multiSel;
+  const [selGroups,   setSelGroups]   = useState(new Set()); // 선택된 그룹 id Set
+  const rSelGroups = useRef(new Set()); rSelGroups.current = selGroups;
   const [showIconPicker, setShowIconPicker] = useState(false);
   const toolbarRef = useRef(null);
   const [toolbarH, setToolbarH] = useState(46);
@@ -822,14 +824,22 @@ function CardEditor({onReset}){
     } else if(type==="shape"||type==="photo"||type==="image"){ wMM=elem.wMM; hMM=elem.hMM;
     } else if(type==="icon"){ wMM=elem.sizeMM; hMM=elem.sizeMM; }
     setSel(id);
-    // 체크된 모든 아이템(멀티셀) 기준으로 함께 이동할 오프셋 계산
-    const checkedIds = rMultiSel.current.filter(mid=>mid!==id);
-    // 체크 없으면 단일 그룹 멤버만
-    const groupMemberIds = checkedIds.length > 0
-      ? checkedIds
-      : (()=>{ const grp=rGroups.current.find(g=>g.memberIds.includes(id)); return grp?grp.memberIds.filter(mid=>mid!==id):[]; })();
+    // selGroups에 있는 그룹 중 이 요소가 속하지 않은 그룹은 제거
+    if(rSelGroups.current&&rSelGroups.current.size>0){
+      const belongsToSelGroup=[...rSelGroups.current].some(gid=>{
+        const g=rGroups.current.find(g=>g.id===gid);
+        return g&&g.memberIds.includes(id);
+      });
+      if(!belongsToSelGroup){
+        rSelGroups.current=new Set();
+        setSelGroups(new Set());
+        setMultiSel([]);
+      }
+    }
+    // selGroups에서 이 요소가 속한 그룹 찾기 — 없으면 단독
+    const grpForSel = [...(rSelGroups.current||[])].map(gid=>rGroups.current.find(g=>g.id===gid)).find(g=>g&&g.memberIds.includes(id));
     let groupOffsets = null;
-    if(groupMemberIds.length > 0){
+    if(grpForSel){
       const allElems = [
         ...stateRef.current.texts.map(t=>({id:t.id,type:'text',xMM:t.xMM,yMM:t.yMM})),
         ...stateRef.current.photos.map(t=>({id:t.id,type:'photo',xMM:t.xMM,yMM:t.yMM})),
@@ -837,7 +847,7 @@ function CardEditor({onReset}){
         ...stateRef.current.shapes.map(t=>({id:t.id,type:'shape',xMM:t.xMM,yMM:t.yMM})),
         ...stateRef.current.icons.map(t=>({id:t.id,type:'icon',xMM:t.xMM,yMM:t.yMM})),
       ];
-      groupOffsets = groupMemberIds.map(mid=>{
+      groupOffsets = grpForSel.memberIds.filter(mid=>mid!==id).map(mid=>{
         const el=allElems.find(e=>e.id===mid); if(!el) return null;
         return {id:mid,type:el.type,dxMM:el.xMM-elem.xMM,dyMM:el.yMM-elem.yMM};
       }).filter(Boolean);
@@ -847,10 +857,9 @@ function CardEditor({onReset}){
 
   // 그룹 리사이즈용: 멤버들의 시작 크기 스냅샷
   const buildGroupSnaps=(primaryId)=>{
-    const checkedIds=rMultiSel.current.filter(mid=>mid!==primaryId);
-    const memberIds=checkedIds.length>0
-      ? checkedIds
-      : (()=>{ const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId)); return grp?grp.memberIds.filter(mid=>mid!==primaryId):[]; })();
+    const grp=[...(rSelGroups.current||[])].map(gid=>rGroups.current.find(g=>g.id===gid)).find(g=>g&&g.memberIds.includes(primaryId));
+    if(!grp) return null;
+    const memberIds=grp.memberIds.filter(mid=>mid!==primaryId);
     if(memberIds.length===0) return null;
     const s=stateRef.current;
     return memberIds.map(mid=>{
@@ -877,10 +886,9 @@ function CardEditor({onReset}){
 
   // 그룹 회전용: 멤버들의 시작 회전값 스냅샷
   const buildGroupRotateSnaps=(primaryId)=>{
-    const checkedIds=rMultiSel.current.filter(mid=>mid!==primaryId);
-    const memberIds=checkedIds.length>0
-      ? checkedIds
-      : (()=>{ const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId)); return grp?grp.memberIds.filter(mid=>mid!==primaryId):[]; })();
+    const grp=[...(rSelGroups.current||[])].map(gid=>rGroups.current.find(g=>g.id===gid)).find(g=>g&&g.memberIds.includes(primaryId));
+    if(!grp) return null;
+    const memberIds=grp.memberIds.filter(mid=>mid!==primaryId);
     if(memberIds.length===0) return null;
     const s=stateRef.current;
     return memberIds.map(mid=>{
@@ -1939,7 +1947,7 @@ function CardEditor({onReset}){
       <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:220,paddingTop:toolbarH}}>
 
         {/* 자 + 카드 영역 */}
-        <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
+        <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);setSelGroups(new Set());setMultiSel([]);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
           alignItems:"center",justifyContent:"center",
           padding:"60px",overflow:"auto",background:"#ecf0f1",position:"relative"}}>
 
@@ -2017,7 +2025,7 @@ function CardEditor({onReset}){
 
             {/* 카드 본체 */}
             <div ref={cardRef}
-              onClick={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);}}}
+              onClick={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setSelGroups(new Set());setMultiSel([]);}}}
               style={{position:"relative",
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
@@ -2850,6 +2858,7 @@ function CardEditor({onReset}){
           ppm={BASE*scale*zoom} setTexts={setTexts} setPhotos={setPhotos} setImages={setImages} setShapes={setShapes} setIcons={setIcons}
           groups={groups} setGroups={setGroups}
           multiSel={multiSel} setMultiSel={setMultiSel}
+          selGroups={selGroups} setSelGroups={setSelGroups}
           sel={sel} setSel={setSel}
           editBarActive={!!(sT||sSh||sIcon)} pickerActive={showIconPicker}
           onDelete={(id)=>{
@@ -3015,7 +3024,7 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
 
 
 /* ════ 레이어 패널 ════ */
-function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTexts,setPhotos,setImages,setShapes,setIcons,groups=[],setGroups,multiSel=[],setMultiSel,ppm=BASE,sel,setSel,editBarActive,pickerActive=false,toolbarH=46,copyrightH=32,onDelete}){
+function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTexts,setPhotos,setImages,setShapes,setIcons,groups=[],setGroups,multiSel=[],setMultiSel,selGroups=null,setSelGroups,ppm=BASE,sel,setSel,editBarActive,pickerActive=false,toolbarH=46,copyrightH=32,onDelete}){
   const dragRef=useRef(null);
   const [dragIdx,setDragIdx]=useState(null);
   const [overIdx,setOverIdx]=useState(null);
@@ -3094,31 +3103,67 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
     return null;
   };
 
+  // 그룹 전체 바운딩박스
+  const getGroupBBox=(grp)=>{
+    const boxes=grp.memberIds.map(id=>getBBox(id)).filter(Boolean);
+    if(boxes.length===0) return null;
+    const xMM=Math.min(...boxes.map(b=>b.xMM));
+    const yMM=Math.min(...boxes.map(b=>b.yMM));
+    const maxX=Math.max(...boxes.map(b=>b.xMM+b.wMM));
+    const maxY=Math.max(...boxes.map(b=>b.yMM+b.hMM));
+    return {xMM,yMM,wMM:maxX-xMM,hMM:maxY-yMM};
+  };
+
+  // multiSel을 정렬 단위 목록으로 변환
+  // selGroups에 있는 그룹 → 하나의 단위, 나머지 → 개별 단위
+  const getAlignUnits=()=>{
+    const sg=selGroups||new Set();
+    if(sg.size>0){
+      const units=[];
+      const seenGrp=new Set();
+      multiSel.forEach(id=>{
+        const grp=getGroup(id);
+        if(grp&&sg.has(grp.id)){
+          if(seenGrp.has(grp.id)) return;
+          seenGrp.add(grp.id);
+          const bb=getGroupBBox(grp);
+          if(bb) units.push({id:grp.id,isGroup:true,memberIds:grp.memberIds,...bb});
+        } else {
+          const bb=getBBox(id);
+          if(bb) units.push({id,isGroup:false,...bb});
+        }
+      });
+      return units;
+    }
+    return multiSel.map(id=>{ const bb=getBBox(id); return bb?{id,isGroup:false,...bb}:null; }).filter(Boolean);
+  };
+
   const doAlign=(type)=>{
     if(multiSel.length<2) return;
-    const boxes=multiSel.map(id=>({id,...getBBox(id)})).filter(b=>b&&b.xMM!==undefined);
-    if(boxes.length<2) return;
-    const minX=Math.min(...boxes.map(b=>b.xMM));
-    const maxX=Math.max(...boxes.map(b=>b.xMM+b.wMM));
-    const minY=Math.min(...boxes.map(b=>b.yMM));
-    const maxY=Math.max(...boxes.map(b=>b.yMM+b.hMM));
+    const units=getAlignUnits();
+    if(units.length<2) return;
+    const minX=Math.min(...units.map(u=>u.xMM));
+    const maxX=Math.max(...units.map(u=>u.xMM+u.wMM));
+    const minY=Math.min(...units.map(u=>u.yMM));
+    const maxY=Math.max(...units.map(u=>u.yMM+u.hMM));
     const midX=(minX+maxX)/2;
     const midY=(minY+maxY)/2;
-
-    // 각 오브젝트의 새 위치 맵 계산
     const posMap={};
-    boxes.forEach(b=>{
-      let nx=b.xMM, ny=b.yMM;
+    units.forEach(u=>{
+      let nx=u.xMM, ny=u.yMM;
       if(type==='left')    nx=minX;
-      if(type==='right')   nx=maxX-b.wMM;
-      if(type==='centerH') nx=midX-b.wMM/2;
+      if(type==='right')   nx=maxX-u.wMM;
+      if(type==='centerH') nx=midX-u.wMM/2;
       if(type==='top')     ny=minY;
-      if(type==='bottom')  ny=maxY-b.hMM;
-      if(type==='centerV') ny=midY-b.hMM/2;
-      posMap[b.id]={x:nx, y:ny};
+      if(type==='bottom')  ny=maxY-u.hMM;
+      if(type==='centerV') ny=midY-u.hMM/2;
+      const dxMM=nx-u.xMM, dyMM=ny-u.yMM;
+      const ids=u.isGroup?u.memberIds:[u.id];
+      ids.forEach(id=>{
+        const bb=getBBox(id); if(!bb) return;
+        posMap[id]={x:bb.xMM+dxMM, y:bb.yMM+dyMM};
+      });
     });
-
-    // 각 setter에 한번만 호출 (forEach 대신 전체 배열을 한번에 처리)
     setTexts(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
     setPhotos(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
     setImages(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
@@ -3127,31 +3172,35 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
   };
 
   const doDistribute=(axis)=>{
-    if(multiSel.length<3) return;
-    const boxes=multiSel.map(id=>({id,...getBBox(id)})).filter(b=>b&&b.xMM!==undefined);
-    if(boxes.length<3) return;
+    if(multiSel.length<2) return;
+    const units=getAlignUnits();
+    if(units.length<3) return;
     const posMap={};
     if(axis==='h'){
-      const sorted=[...boxes].sort((a,b)=>a.xMM-b.xMM);
+      const sorted=[...units].sort((a,b)=>a.xMM-b.xMM);
       const totalSpan=(sorted[sorted.length-1].xMM+sorted[sorted.length-1].wMM)-sorted[0].xMM;
-      const totalW=sorted.reduce((s,b)=>s+b.wMM,0);
+      const totalW=sorted.reduce((s,u)=>s+u.wMM,0);
       const gap=(totalSpan-totalW)/(sorted.length-1);
       let cursor=sorted[0].xMM+sorted[0].wMM;
-      sorted.forEach((b,i)=>{
-        if(i===0||i===sorted.length-1){posMap[b.id]={x:b.xMM,y:b.yMM};return;}
-        posMap[b.id]={x:cursor+gap,y:b.yMM};
-        cursor=cursor+gap+b.wMM;
+      sorted.forEach((u,i)=>{
+        const nx=i===0?u.xMM:i===sorted.length-1?u.xMM:cursor+gap;
+        const dxMM=nx-u.xMM;
+        (u.isGroup?u.memberIds:[u.id]).forEach(id=>{const bb=getBBox(id);if(bb)posMap[id]={x:bb.xMM+dxMM,y:bb.yMM};});
+        if(i>0&&i<sorted.length-1) cursor=nx+u.wMM;
+        else if(i===0) cursor=u.xMM+u.wMM;
       });
     } else {
-      const sorted=[...boxes].sort((a,b)=>a.yMM-b.yMM);
+      const sorted=[...units].sort((a,b)=>a.yMM-b.yMM);
       const totalSpan=(sorted[sorted.length-1].yMM+sorted[sorted.length-1].hMM)-sorted[0].yMM;
-      const totalH=sorted.reduce((s,b)=>s+b.hMM,0);
+      const totalH=sorted.reduce((s,u)=>s+u.hMM,0);
       const gap=(totalSpan-totalH)/(sorted.length-1);
       let cursor=sorted[0].yMM+sorted[0].hMM;
-      sorted.forEach((b,i)=>{
-        if(i===0||i===sorted.length-1){posMap[b.id]={x:b.xMM,y:b.yMM};return;}
-        posMap[b.id]={x:b.xMM,y:cursor+gap};
-        cursor=cursor+gap+b.hMM;
+      sorted.forEach((u,i)=>{
+        const ny=i===0?u.yMM:i===sorted.length-1?u.yMM:cursor+gap;
+        const dyMM=ny-u.yMM;
+        (u.isGroup?u.memberIds:[u.id]).forEach(id=>{const bb=getBBox(id);if(bb)posMap[id]={x:bb.xMM,y:bb.yMM+dyMM};});
+        if(i>0&&i<sorted.length-1) cursor=ny+u.hMM;
+        else if(i===0) cursor=u.yMM+u.hMM;
       });
     }
     setTexts(p=>p.map(t=>posMap[t.id]?{...t,xMM:posMap[t.id].x,yMM:posMap[t.id].y}:t));
@@ -3168,7 +3217,7 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
     if(l.type==="text"){ const t=texts.find(t=>t.id===l.id); return t?t.text.slice(0,8):"텍스트"; }
     if(l.type==="photo") return "사진";
     if(l.type==="image") return "이미지";
-    if(l.type==="shape"){ const s=shapes.find(s=>s.id===l.id); if(s){return s.type==="circle"?"원형":s.type==="triangle"?"삼각형":"사각형";} return "도형"; }
+    if(l.type==="shape"){ const s=shapes.find(s=>s.id===l.id); if(s){return s.type==="circle"?"원형":s.type==="triangle"?"삼각형":s.type==="heart"?"하트":s.type==="star"?"별":s.type==="pentagon"?"오각형":s.type==="hexagon"?"육각형":"사각형";} return "도형"; }
     if(l.type==="icon"){ const ic=icons.find(i=>i.id===l.id); return ic?`아이콘`:"아이콘"; }
     return "레이어";
   };
@@ -3192,8 +3241,8 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
   const toggleLocked=(id)=>setLayers(p=>p.map(l=>l.id===id?{...l,locked:!l.locked}:l));
 
   // drag to reorder (in reversed view, then convert back)
-  const onDragStart=(e,revIdx)=>{
-    dragRef.current={revIdx};
+  const onDragStart=(e,revIdx,groupId=null)=>{
+    dragRef.current={revIdx,groupId};
     setDragIdx(revIdx);
     e.dataTransfer.effectAllowed="move";
   };
@@ -3203,18 +3252,30 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
   };
   const onDrop=(e,revIdx)=>{
     e.preventDefault();
-    if(dragRef.current===null) return;
-    const fromRevIdx=dragRef.current.revIdx;
+    if(!dragRef.current) return;
+    const {revIdx:fromRevIdx,groupId}=dragRef.current;
     if(fromRevIdx===revIdx){setDragIdx(null);setOverIdx(null);return;}
-    // convert reversed idx → actual idx
     const n=layers.length;
-    const fromIdx=n-1-fromRevIdx;
-    const toIdx=n-1-revIdx;
     setLayers(p=>{
       const arr=[...p];
-      const [item]=arr.splice(fromIdx,1);
-      arr.splice(toIdx,0,item);
-      return arr;
+      if(groupId){
+        // 그룹 전체 멤버를 블록으로 이동
+        const grp=groups.find(g=>g.id===groupId);
+        if(!grp){setDragIdx(null);setOverIdx(null);return p;}
+        const memberSet=new Set(grp.memberIds);
+        const members=arr.filter(l=>memberSet.has(l.id));
+        const nonMembers=arr.filter(l=>!memberSet.has(l.id));
+        const toIdx=n-1-revIdx;
+        // toIdx는 원본 arr 기준이므로 nonMembers에서 상대 위치 계산
+        const nonMemberToIdx=arr.slice(0,toIdx+1).filter(l=>!memberSet.has(l.id)).length;
+        return [...nonMembers.slice(0,nonMemberToIdx),...members,...nonMembers.slice(nonMemberToIdx)];
+      } else {
+        const fromIdx=n-1-fromRevIdx;
+        const toIdx=n-1-revIdx;
+        const [item]=arr.splice(fromIdx,1);
+        arr.splice(toIdx,0,item);
+        return arr;
+      }
     });
     dragRef.current=null;
     setDragIdx(null);
@@ -3240,22 +3301,53 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
             if(grp){
               if(!rendered.has(grp.id)){
                 rendered.add(grp.id);
-                const allSel=grp.memberIds.every(m=>multiSel.includes(m));
+                const grpActive=(selGroups||new Set()).has(grp.id);
                 rows.push(
-                  <div key={'grp-'+grp.id} style={{display:'flex',alignItems:'center',gap:5,
-                    padding:'3px 8px 3px 6px',background:'rgba(243,156,18,.1)',
+                  <div key={'grp-'+grp.id}
+                    draggable
+                    onDragStart={e=>onDragStart(e,revIdx,grp.id)}
+                    onDragOver={e=>onDragOver(e,revIdx)}
+                    onDrop={e=>onDrop(e,revIdx)}
+                    onDragEnd={onDragEnd}
+                    style={{display:'flex',alignItems:'center',gap:5,
+                    padding:'3px 8px 3px 6px',
+                    background:grpActive?'rgba(243,156,18,.3)':'rgba(243,156,18,.1)',
+                    cursor:'grab',
                     borderBottom:'1px solid rgba(243,156,18,.2)',borderTop:'1px solid rgba(243,156,18,.2)'}}>
                     <div onClick={e=>{e.stopPropagation();
-                      if(allSel) { setMultiSel(p=>p.filter(id=>!grp.memberIds.includes(id))); }
-                      else { setMultiSel(p=>[...new Set([...p,...grp.memberIds])]); setSel(grp.memberIds[0]); }
-                    }} style={{flexShrink:0,width:14,height:14,border:`1.5px solid ${allSel?'#f39c12':'rgba(255,255,255,.2)'}`,
-                      borderRadius:3,background:allSel?'#f39c12':'transparent',
+                      if(grpActive){
+                        setSelGroups(p=>{const n=new Set(p);n.delete(grp.id);return n;});
+                        setMultiSel(p=>p.filter(id=>!grp.memberIds.includes(id)));
+                      } else {
+                        setSelGroups(p=>new Set([...p,grp.id]));
+                        setMultiSel(p=>[...new Set([...p,...grp.memberIds])]);
+                        setSel(grp.memberIds[0]);
+                      }
+                    }} style={{flexShrink:0,width:14,height:14,border:`1.5px solid ${grpActive?'#f39c12':'rgba(255,255,255,.2)'}`,
+                      borderRadius:3,background:grpActive?'#f39c12':'transparent',
                       cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      {allSel&&<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>}
+                      {grpActive&&<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>}
                     </div>
-                    <span style={{fontSize:10,cursor:'pointer',userSelect:'none',color:'rgba(255,255,255,.5)'}} onClick={()=>toggleCollapse(grp.id)}>{grp.collapsed?'▶':'▼'}</span>
+                    <span style={{fontSize:10,cursor:'pointer',userSelect:'none',color:'rgba(255,255,255,.5)'}} onClick={e=>{e.stopPropagation();toggleCollapse(grp.id);}}>{grp.collapsed?'▶':'▼'}</span>
+                    {/* 그룹 전체 눈 아이콘 */}
+                    {(()=>{
+                      const allVisible=grp.memberIds.every(mid=>{const lyr=layers.find(l=>l.id===mid);return lyr?lyr.visible!==false:true;});
+                      return(
+                        <div onClick={e=>{e.stopPropagation();
+                          setLayers(p=>p.map(l=>grp.memberIds.includes(l.id)?{...l,visible:!allVisible}:l));
+                        }} style={{flexShrink:0,width:18,height:18,display:'flex',alignItems:'center',justifyContent:'center',
+                          cursor:'pointer',color:allVisible?'rgba(255,255,255,.8)':'rgba(255,255,255,.25)'}}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            {allVisible
+                              ?<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                              :<><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
+                            }
+                          </svg>
+                        </div>
+                      );
+                    })()}
                     <span style={{fontSize:10,color:'#f39c12',fontWeight:600,flex:1}}>📦 {grp.name}</span>
-                    <button onClick={()=>doUngroup(grp.id)} style={{fontSize:9,color:'rgba(255,255,255,.4)',background:'none',border:'none',cursor:'pointer',padding:'1px 4px',borderRadius:3}}>해제</button>
+                    <button onClick={e=>{e.stopPropagation();doUngroup(grp.id);}} style={{fontSize:9,color:'rgba(255,255,255,.4)',background:'none',border:'none',cursor:'pointer',padding:'1px 4px',borderRadius:3}}>해제</button>
                   </div>
                 );
               }
@@ -3268,10 +3360,10 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
               <div key={l.id} draggable
                 onDragStart={e=>onDragStart(e,revIdx)} onDragOver={e=>onDragOver(e,revIdx)}
                 onDrop={e=>onDrop(e,revIdx)} onDragEnd={onDragEnd}
-                onClick={()=>{if(!l.locked)setSel(l.id);}}
+                onClick={()=>{if(!l.locked){setSel(l.id);const grp=getGroup(l.id);if(grp){setSelGroups(p=>{const n=new Set(p);n.delete(grp.id);return n;});setMultiSel(p=>p.filter(id=>!grp.memberIds.includes(id)||id===l.id));}}}}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
                   paddingLeft:grp?16:8,
-                  background:isSel?"rgba(52,152,219,.25)":isDrag?"rgba(255,255,255,.04)":"transparent",
+                  background:isSel?"rgba(52,152,219,.25)":isDrag?"rgba(255,255,255,.04)":grp?"rgba(255,255,255,.04)":"transparent",
                   borderTop:isOver?"2px solid #3498db":"2px solid transparent",
                   cursor:l.locked?"default":"pointer",opacity:l.visible?1:0.45,transition:"background .1s"}}>
                 <div onClick={e=>{e.stopPropagation();toggleMulti(l.id);}}
