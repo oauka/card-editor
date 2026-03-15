@@ -1449,7 +1449,7 @@ function CardEditor({onReset}){
       if(cropModal&&cropModal.photoId===phId){
         setCropModal(prev=>({...prev,img:url,src:url}));
       } else {
-        setCropModal({photoId:phId,img:url,src:url,shape:ph.shape,wMM:ph.wMM,hMM:ph.hMM});
+        setCropModal({photoId:phId,img:url,src:url,shape:ph.shape,wMM:ph.wMM,hMM:ph.hMM,radius:ph.radius||0,vState:null});
       }
     };
     reader.readAsDataURL(f);
