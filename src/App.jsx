@@ -990,23 +990,22 @@ function CardEditor({onReset}){
     /* ── 3. Canvas 세팅 ── */
     const DPI  = 300;
     const ppm  = DPI / 25.4;
-    const cutW = cardW - MAR * 2;
-    const cutH = cardH - MAR * 2;
-    const CW   = Math.round(cutW * ppm);
-    const CH   = Math.round(cutH * ppm);
-    const P    = mm => (mm - MAR) * ppm;      // 재단 기준 좌표 (위치용)
-    const PS   = mm => mm * ppm;              // 크기 전용 (MAR 보정 없음)
-    const FSC  = ppm / BASE;                   // 폰트 크기 스케일 (scale/zoom 무관)
+    // 전체 카드 크기로 렌더 후 재단선 기준으로 크롭
+    const fullW = Math.round(cardW * ppm);
+    const fullH = Math.round(cardH * ppm);
+    const cutX  = Math.round(MAR * ppm);
+    const cutY  = Math.round(MAR * ppm);
+    const CW    = Math.round((cardW - MAR*2) * ppm);
+    const CH    = Math.round((cardH - MAR*2) * ppm);
+    const P     = mm => mm * ppm;              // 전체 카드 기준 좌표
+    const PS    = mm => mm * ppm;              // 크기 전용
+    const FSC   = ppm / BASE;                  // 폰트 크기 스케일
 
     const canvas = document.createElement('canvas');
-    canvas.width = CW; canvas.height = CH;
+    canvas.width = fullW; canvas.height = fullH;
     const ctx = canvas.getContext('2d');
-    // 재단선 영역만 클립
-    ctx.beginPath();
-    ctx.rect(0, 0, CW, CH);
-    ctx.clip();
     ctx.fillStyle = cardBg || '#fff';
-    ctx.fillRect(0, 0, CW, CH);
+    ctx.fillRect(0, 0, fullW, fullH);
 
     const loadImg = src => new Promise(res => {
       if(!src){ res(null); return; }
@@ -1216,7 +1215,12 @@ function CardEditor({onReset}){
       }
     }
 
-    canvas.toBlob(blob => {
+    // 재단선 기준으로 크롭
+    const cropped = document.createElement('canvas');
+    cropped.width = CW; cropped.height = CH;
+    cropped.getContext('2d').drawImage(canvas, cutX, cutY, CW, CH, 0, 0, CW, CH);
+
+    cropped.toBlob(blob => {
       if(!blob) return;
       // PNG에 300dpi pHYs 청크 삽입
       const reader = new FileReader();
