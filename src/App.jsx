@@ -996,8 +996,9 @@ function CardEditor({onReset}){
     const fullH = Math.round(cardH * ppm);
     const cutX  = Math.round(MAR * ppm);
     const cutY  = Math.round(MAR * ppm);
-    const CW    = Math.round((cardW - MAR*2) * ppm);
-    const CH    = Math.round((cardH - MAR*2) * ppm);
+    // CW/CH는 fullW/H에서 cutX/Y를 뺀 값으로 — rounding 오차로 인한 1px 갭 방지
+    const CW    = fullW - cutX * 2;
+    const CH    = fullH - cutY * 2;
     const P     = mm => mm * ppm;              // 전체 카드 기준 좌표
     const PS    = mm => mm * ppm;              // 크기 전용
     const FSC   = ppm / BASE;                  // 폰트 크기 스케일
@@ -1177,16 +1178,18 @@ function CardEditor({onReset}){
         ctx.font         = `${sty} ${wgt} ${fs}px "${fam}",sans-serif`;
         ctx.fillStyle    = t.color || '#000';
         ctx.textBaseline = 'top';
+        // DOM lineHeight:1.4 의 half-leading 보정 — (1.4-1)/2 * fs
+        const halfLead = 0.2 * fs;
         if(t.strokeW && t.strokeW>0){
           ctx.lineWidth   = t.strokeW * 2;
           ctx.strokeStyle = t.strokeColor || '#000';
           ctx.lineJoin    = 'round';
-          ctx.strokeText(t.text, 0, 0);
+          ctx.strokeText(t.text, 0, halfLead);
         }
-        ctx.fillText(t.text, 0, 0);
+        ctx.fillText(t.text, 0, halfLead);
         if(t.underline || t.strike){
           const w = ctx.measureText(t.text).width;
-          ctx.fillRect(0, t.underline ? fs*1.1 : fs*0.55, w, Math.max(1, fs*0.07));
+          ctx.fillRect(0, halfLead+(t.underline ? fs*1.1 : fs*0.55), w, Math.max(1, fs*0.07));
         }
         ctx.restore();
       }
@@ -1369,6 +1372,42 @@ function CardEditor({onReset}){
     };
     const ax=(w)=>{const ww=w||0;return halign==='left'?cutL:halign==='center'?cutCX-ww/2:cutR-ww;};
     const ay=(h)=>{const hh=h||0;return valign==='top'?cutT:valign==='middle'?cutCY-hh/2:cutB-hh;};
+
+    // 그룹 선택 상태: 그룹 전체를 하나의 단위로 정렬
+    const sg=rSelGroups.current;
+    if(sg&&sg.size>0){
+      const allGrpIds=[...sg];
+      const allMemberIds=allGrpIds.flatMap(gid=>{const g=rGroups.current.find(g=>g.id===gid);return g?g.memberIds:[];});
+      if(allMemberIds.length===0) return;
+      // 전체 바운딩박스 계산
+      const allS=stateRef.current;
+      const getBox=(id)=>{
+        const t=allS.texts.find(x=>x.id===id); if(t){const {w,h}=getElemSize(id);return{xMM:t.xMM,yMM:t.yMM,wMM:w,hMM:h};}
+        const ph=allS.photos.find(x=>x.id===id); if(ph) return{xMM:ph.xMM,yMM:ph.yMM,wMM:ph.wMM,hMM:ph.hMM};
+        const im=allS.images.find(x=>x.id===id); if(im) return{xMM:im.xMM,yMM:im.yMM,wMM:im.wMM,hMM:im.hMM};
+        const sh=allS.shapes.find(x=>x.id===id); if(sh) return{xMM:sh.xMM,yMM:sh.yMM,wMM:sh.wMM,hMM:sh.hMM};
+        const ic=allS.icons.find(x=>x.id===id);  if(ic) return{xMM:ic.xMM,yMM:ic.yMM,wMM:ic.sizeMM||0,hMM:ic.sizeMM||0};
+        return null;
+      };
+      const boxes=allMemberIds.map(getBox).filter(Boolean);
+      if(boxes.length===0) return;
+      const gMinX=Math.min(...boxes.map(b=>b.xMM));
+      const gMinY=Math.min(...boxes.map(b=>b.yMM));
+      const gMaxX=Math.max(...boxes.map(b=>b.xMM+b.wMM));
+      const gMaxY=Math.max(...boxes.map(b=>b.yMM+b.hMM));
+      const gW=gMaxX-gMinX, gH=gMaxY-gMinY;
+      const newX=ax(gW), newY=ay(gH);
+      const dxMM=newX-gMinX, dyMM=newY-gMinY;
+      // 모든 멤버 이동
+      setTexts(p=>p.map(t=>allMemberIds.includes(t.id)?{...t,xMM:t.xMM+dxMM,yMM:t.yMM+dyMM}:t));
+      setPhotos(p=>p.map(t=>allMemberIds.includes(t.id)?{...t,xMM:t.xMM+dxMM,yMM:t.yMM+dyMM}:t));
+      setImages(p=>p.map(t=>allMemberIds.includes(t.id)?{...t,xMM:t.xMM+dxMM,yMM:t.yMM+dyMM}:t));
+      setShapes(p=>p.map(t=>allMemberIds.includes(t.id)?{...t,xMM:t.xMM+dxMM,yMM:t.yMM+dyMM}:t));
+      setIcons(p=>p.map(t=>allMemberIds.includes(t.id)?{...t,xMM:t.xMM+dxMM,yMM:t.yMM+dyMM}:t));
+      return;
+    }
+
+    // 개별 정렬
     const sh=shapes.find(x=>x&&x.id===sel);
     if(sh&&sh.wMM!==undefined){setShapes(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(s.wMM),yMM:ay(s.hMM)}));return;}
     const ph=photos.find(x=>x&&x.id===sel);
@@ -1379,7 +1418,7 @@ function CardEditor({onReset}){
     if(ic){setIcons(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(s.sizeMM||0),yMM:ay(s.sizeMM||0)}));return;}
     const tx=texts.find(x=>x&&x.id===sel);
     if(tx){const {w,h}=getElemSize(tx.id);setTexts(p=>p.map(s=>!s||s.id!==sel?s:{...s,xMM:ax(w),yMM:ay(h)}));return;}
-  },[sel,cardW,cardH,shapes,photos,images,icons,texts]);
+  },[sel,selGroups,cardW,cardH,shapes,photos,images,icons,texts]);
 
   // ── 빈 템플릿 ──
   const applyBlankTemplate=()=>{
@@ -2258,7 +2297,7 @@ function CardEditor({onReset}){
                       cursor:isLocked(t.id)?"default":isEditing?"text":"move",
                       outline:sel===t.id&&!isEditing&&!isLocked(t.id)?"1.5px dashed #2980b9":"none",
                       background:sel===t.id&&!isEditing&&!isLocked(t.id)?"rgba(41,128,185,.05)":"transparent",
-                      padding:"1px 3px",lineHeight:1.4,
+                      padding:"0",lineHeight:1.4,
                       opacity:t.opacity??1,
                       transform:`rotate(${rot}deg) scaleX(${t.flipX?-1:1})`,transformOrigin:"center center"}}>
                     {isEditing?(
