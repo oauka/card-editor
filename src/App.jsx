@@ -2293,8 +2293,9 @@ function CardEditor({onReset}){
                       if(isLocked(t.id)||editing===t.id) return;
                       if(e.target===e.currentTarget) startElem(e,t.id,"text");
                     }}
-                    style={{position:"absolute",left:P(t.xMM),top:P(t.yMM),zIndex:zIdx(t.id),pointerEvents:isVisible(t.id)?"auto":"none",
-                      cursor:isLocked(t.id)?"default":isEditing?"text":"move",
+                    style={{position:"absolute",left:P(t.xMM),top:P(t.yMM),zIndex:zIdx(t.id),
+                      pointerEvents:isVisible(t.id)&&!isLocked(t.id)?"auto":"none",
+                      cursor:isEditing?"text":"move",
                       outline:sel===t.id&&!isEditing&&!isLocked(t.id)?"1.5px dashed #2980b9":"none",
                       background:sel===t.id&&!isEditing&&!isLocked(t.id)?"rgba(41,128,185,.05)":"transparent",
                       padding:"0",lineHeight:1.4,
