@@ -974,7 +974,8 @@ function CardEditor({onReset}){
     const cutH = cardH - MAR * 2;
     const CW   = Math.round(cutW * ppm);
     const CH   = Math.round(cutH * ppm);
-    const P    = mm => (mm - MAR) * ppm;      // 재단 기준 좌표
+    const P    = mm => (mm - MAR) * ppm;      // 재단 기준 좌표 (위치용)
+    const PS   = mm => mm * ppm;              // 크기 전용 (MAR 보정 없음)
     const FSC  = ppm / BASE;                   // 폰트 크기 스케일 (scale/zoom 무관)
 
     const canvas = document.createElement('canvas');
@@ -1006,17 +1007,17 @@ function CardEditor({onReset}){
         if(!img) continue;
         ctx.save();
         ctx.globalAlpha = im.opacity??1;
-        ctx.translate(P(im.xMM)+P(im.wMM)/2, P(im.yMM)+P(im.hMM)/2);
+        ctx.translate(P(im.xMM)+PS(im.wMM)/2, P(im.yMM)+PS(im.hMM)/2);
         ctx.rotate((im.rotate||0)*Math.PI/180);
         if(im.flipX) ctx.scale(-1,1);
-        ctx.drawImage(img,-P(im.wMM)/2,-P(im.hMM)/2,P(im.wMM),P(im.hMM));
+        ctx.drawImage(img,-PS(im.wMM)/2,-PS(im.hMM)/2,PS(im.wMM),PS(im.hMM));
         ctx.restore();
       }
 
       else if(layer.type==='shape'){
         const sh = shapes.find(s=>s.id===layer.id);
         if(!sh) continue;
-        const hw=P(sh.wMM)/2, hh=P(sh.hMM)/2;
+        const hw=PS(sh.wMM)/2, hh=PS(sh.hMM)/2;
         ctx.save();
         ctx.globalAlpha = sh.opacity??1;
         ctx.translate(P(sh.xMM)+hw, P(sh.yMM)+hh);
@@ -1099,7 +1100,7 @@ function CardEditor({onReset}){
         if(!ph?.src) continue;
         const img = await loadImg(ph.src);
         if(!img) continue;
-        const hw=P(ph.wMM)/2, hh=P(ph.hMM)/2;
+        const hw=PS(ph.wMM)/2, hh=PS(ph.hMM)/2;
         ctx.save();
         ctx.translate(P(ph.xMM)+hw, P(ph.yMM)+hh);
         ctx.rotate((ph.rotate||0)*Math.PI/180);
@@ -1116,7 +1117,7 @@ function CardEditor({onReset}){
           ctx.closePath();
         }
         ctx.clip();
-        ctx.drawImage(img,-hw,-hh,P(ph.wMM),P(ph.hMM));
+        ctx.drawImage(img,-hw,-hh,PS(ph.wMM),PS(ph.hMM));
         if(ph.borderW&&ph.borderW>0){
           ctx.restore();
           ctx.save();
@@ -1173,7 +1174,7 @@ function CardEditor({onReset}){
       else if(layer.type==='icon'){
         const ic = icons.find(i=>i.id===layer.id);
         if(!ic) continue;
-        const isz = P(ic.sizeMM);
+        const isz = PS(ic.sizeMM);
         const sc2 = isz * 0.8 / 24;
         const pathData = _IC[ic.type]||'M12 2a10 10 0 100 20A10 10 0 0012 2z';
         ctx.save();
@@ -2902,6 +2903,7 @@ function CardEditor({onReset}){
       {showPreview&&(
         <PreviewModal
           orient={orient} photos={photos} texts={texts} images={images} shapes={shapes} icons={icons}
+          layers={layers}
           scale={scale} cardBg={cardBg} cardW={cardW} cardH={cardH} onClose={()=>setShowPreview(false)}
         />
       )}
@@ -2911,15 +2913,77 @@ function CardEditor({onReset}){
 }
 
 /* ════ 미리보기 모달 ════ */
-function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardBg="#fff",onClose,cardW,cardH}){
+function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],scale,cardBg="#fff",onClose,cardW,cardH}){
   const cs={w:cardW||CARD[orient].w, h:cardH||CARD[orient].h};
+  // 재단선 기준 영역만 표시 (다운로드와 동일)
+  const cutW=cs.w-MAR*2, cutH=cs.h-MAR*2;
   const maxW=Math.min(window.innerWidth*0.82,700);
   const maxH=window.innerHeight*0.80;
-  const ppm=Math.min(maxW/cs.w,maxH/cs.h);
-  const CW=cs.w*ppm, CH=cs.h*ppm;
-  const P=mm=>mm*ppm;
-  const MAR_=MAR*ppm;
+  const ppm=Math.min(maxW/cutW,maxH/cutH);
+  const CW=cutW*ppm, CH=cutH*ppm;
+  const P=mm=>(mm-MAR)*ppm;   // 재단선 기준 좌표 (다운로드와 동일)
+  const PS=mm=>mm*ppm;         // 크기 전용
   const FSC=scale*(ppm/BASE);
+
+  const renderLayer=(l)=>{
+    if(!l.visible) return null;
+    if(l.type==='image'){
+      const im=images.find(x=>x.id===l.id); if(!im) return null;
+      return(
+        <div key={im.id} style={{position:"absolute",left:P(im.xMM),top:P(im.yMM),
+          width:PS(im.wMM),height:PS(im.hMM),
+          transform:`rotate(${im.rotate||0}deg)`,transformOrigin:"center center",overflow:"hidden",
+          opacity:im.opacity??1}}>
+          <img src={im.src} alt="" draggable={false} style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
+        </div>
+      );
+    }
+    if(l.type==='shape'){
+      const sh=shapes.find(x=>x.id===l.id); if(!sh) return null;
+      const sx=P(sh.xMM),sy=P(sh.yMM),sw=PS(sh.wMM),shh=PS(sh.hMM);
+      const commonStyle={position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"};
+      if(sh.type==="circle") return <svg key={sh.id} style={commonStyle}><ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sh.fill}/></svg>;
+      if(sh.type==="triangle") return <svg key={sh.id} style={commonStyle}><polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sh.fill}/></svg>;
+      return <svg key={sh.id} style={commonStyle}><rect x={0} y={0} width={sw} height={shh} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill}/></svg>;
+    }
+    if(l.type==='photo'){
+      const ph=photos.find(x=>x.id===l.id); if(!ph||!ph.src) return null;
+      return(
+        <div key={ph.id} style={{position:"absolute",left:P(ph.xMM),top:P(ph.yMM),
+          width:PS(ph.wMM),height:PS(ph.hMM),overflow:"hidden",
+          clipPath:ph.shape==="circle"?"ellipse(50% 50% at 50% 50%)":"none",
+          borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`}}>
+          <img src={ph.src} draggable={false} alt="" style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
+        </div>
+      );
+    }
+    if(l.type==='text'){
+      const t=texts.find(x=>x.id===l.id); if(!t) return null;
+      const tdec=[t.strike?"line-through":"",t.underline?"underline":""].filter(Boolean).join(" ")||"none";
+      return(
+        <div key={t.id} style={{position:"absolute",left:P(t.xMM),top:P(t.yMM),
+          fontSize:t.fs*FSC,color:t.color,
+          fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
+          textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",whiteSpace:"pre",lineHeight:1.4,pointerEvents:"none",
+          transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center",opacity:t.opacity??1}}>
+          {t.text}
+        </div>
+      );
+    }
+    if(l.type==='icon'){
+      const ic=icons.find(x=>x.id===l.id); if(!ic) return null;
+      const isz=PS(ic.sizeMM);
+      return(
+        <div key={ic.id} style={{position:"absolute",left:P(ic.xMM),top:P(ic.yMM),
+          width:isz,height:isz,display:"flex",alignItems:"center",justifyContent:"center",
+          pointerEvents:"none",transform:`rotate(${ic.rotate||0}deg)`,transformOrigin:"center center",opacity:ic.opacity??1}}>
+          <IcoSVG type={ic.type} color={ic.color} size={isz*0.8}/>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return(
     <div onClick={onClose}
       style={{position:"fixed",inset:0,zIndex:1000,
@@ -2929,70 +2993,9 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],scale,cardB
       <div onClick={e=>e.stopPropagation()}
         style={{position:"relative",width:CW,height:CH,background:cardBg,
           boxShadow:"0 8px 40px rgba(0,0,0,.5)",borderRadius:2,overflow:"hidden"}}>
-        {images.map(im=>(
-          <div key={im.id} style={{position:"absolute",left:P(im.xMM),top:P(im.yMM),
-            width:P(im.wMM),height:P(im.hMM),
-            transform:`rotate(${im.rotate||0}deg)`,transformOrigin:"center center",overflow:"hidden",
-            opacity:im.opacity??1}}>
-            <img src={im.src} alt="" draggable={false}
-              style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
-          </div>
-        ))}
-        {shapes.map(sh=>{
-          const sx=P(sh.xMM),sy=P(sh.yMM),sw=P(sh.wMM),shh=P(sh.hMM);
-          if(sh.type==="circle") return(
-            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"}}>
-              <ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sh.fill}/>
-            </svg>
-          );
-          if(sh.type==="triangle") return(
-            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"}}>
-              <polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sh.fill}/>
-            </svg>
-          );
-          return(
-            <svg key={sh.id} style={{position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"}}>
-              <rect x={0} y={0} width={sw} height={shh} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill}/>
-            </svg>
-          );
-        })}
-        {photos.filter(ph=>ph.src).map(ph=>{
-          return(
-            <div key={ph.id} style={{position:"absolute",left:P(ph.xMM),top:P(ph.yMM),
-              width:P(ph.wMM),height:P(ph.hMM),overflow:"hidden",
-              clipPath:ph.shape==="circle"?"ellipse(50% 50% at 50% 50%)":"none",
-              borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`}}>
-              <img src={ph.src} draggable={false} alt=""
-                style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
-            </div>
-          );
-        })}
-        {texts.map(t=>{
-          const tdec=[t.strike?"line-through":"",t.underline?"underline":""].filter(Boolean).join(" ")||"none";
-          return(
-            <div key={t.id} style={{position:"absolute",left:P(t.xMM),top:P(t.yMM),
-              fontSize:t.fs*FSC,color:t.color,
-              fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
-              textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",whiteSpace:"pre",lineHeight:1.4,pointerEvents:"none",
-              transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center",
-              opacity:t.opacity??1}}>
-              {t.text}
-            </div>
-          );
-        })}
-        {icons.map(ic=>{
-          const isz=P(ic.sizeMM);
-          return(
-            <div key={ic.id} style={{position:"absolute",left:P(ic.xMM),top:P(ic.yMM),
-              width:isz,height:isz,display:"flex",alignItems:"center",justifyContent:"center",
-              pointerEvents:"none",transform:`rotate(${ic.rotate||0}deg)`,transformOrigin:"center center",
-              opacity:ic.opacity??1}}>
-              <IcoSVG type={ic.type} color={ic.color} size={isz*0.8}/>
-            </div>
-          );
-        })}
+        {layers.map(l=>renderLayer(l))}
       </div>
-      <div style={{color:"rgba(255,255,255,.45)",fontSize:11}}>재단 영역 {cs.w-4}{"×"}{cs.h-4}mm</div>
+      <div style={{color:"rgba(255,255,255,.45)",fontSize:11}}>재단 영역 {cutW}{"×"}{cutH}mm</div>
     </div>
   );
 }
