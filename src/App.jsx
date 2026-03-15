@@ -2139,8 +2139,8 @@ function CardEditor({onReset}){
                 return(
                   <React.Fragment key={im.id}>
                     <div
-                      onMouseDown={e=>startElem(e,im.id,"image")}
-                      onClick={e=>{setSel(im.id);e.stopPropagation();}}
+                      onMouseDown={e=>{if(isLocked(im.id))return;startElem(e,im.id,"image");}}
+                      onClick={e=>{if(isLocked(im.id))return;setSel(im.id);e.stopPropagation();}}
                       style={{position:"absolute",left:ix,top:iy,width:iw,height:ih,
                         outline:isSel?"2px solid #e67e22":"none",
                         cursor:isLocked(im.id)?"default":"move",zIndex:zIdx(im.id),boxSizing:"border-box",pointerEvents:isVisible(im.id)?"auto":"none",
@@ -2160,7 +2160,7 @@ function CardEditor({onReset}){
                 const isSel=sel===ph.id;
                 return(
                   <div key={ph.id}
-                    onMouseDown={e=>startElem(e,ph.id,"photo")}
+                    onMouseDown={e=>{if(isLocked(ph.id))return;startElem(e,ph.id,"photo");}}
                     onClick={e=>{if(isLocked(ph.id))return;setSel(ph.id);e.stopPropagation();}}
                     onDoubleClick={e=>{if(isLocked(ph.id))return;e.stopPropagation();if(ph.src)openCropModal(ph);else document.getElementById(inputId)?.click();}}
                     style={{position:"absolute",left:P(ph.xMM),top:P(ph.yMM),
@@ -2204,8 +2204,8 @@ function CardEditor({onReset}){
                 const isSel=sel===ic.id;
                 return(
                   <div key={ic.id} data-elem-id={ic.id}
-                    onMouseDown={e=>startElem(e,ic.id,"icon")}
-                    onClick={e=>{setSel(ic.id);e.stopPropagation();}}
+                    onMouseDown={e=>{if(isLocked(ic.id))return;startElem(e,ic.id,"icon");}}
+                    onClick={e=>{if(isLocked(ic.id))return;setSel(ic.id);e.stopPropagation();}}
                     style={{position:"absolute",left:ix,top:iy,width:isz,height:isz,
                       display:"flex",alignItems:"center",justifyContent:"center",
                       outline:isSel?"1.5px dashed #9b59b6":"none",
