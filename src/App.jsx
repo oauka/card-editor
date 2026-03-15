@@ -365,6 +365,8 @@ function CardEditor({onReset}){
   const [icons,       setIcons]       = useState([]);
   const [groups,      setGroups]      = useState([]); // [{id,name,memberIds,collapsed}]
   const rGroups = useRef([]); rGroups.current = groups;
+  const [multiSel,    setMultiSel]    = useState([]); // 레이어 패널 체크박스 선택
+  const rMultiSel = useRef([]); rMultiSel.current = multiSel;
   const [showIconPicker, setShowIconPicker] = useState(false);
   const toolbarRef = useRef(null);
   const [toolbarH, setToolbarH] = useState(46);
@@ -820,10 +822,14 @@ function CardEditor({onReset}){
     } else if(type==="shape"||type==="photo"||type==="image"){ wMM=elem.wMM; hMM=elem.hMM;
     } else if(type==="icon"){ wMM=elem.sizeMM; hMM=elem.sizeMM; }
     setSel(id);
-    // 그룹 멤버 오프셋 계산
-    const grp = rGroups.current.find(g=>g.memberIds.includes(id));
+    // 체크된 모든 아이템(멀티셀) 기준으로 함께 이동할 오프셋 계산
+    const checkedIds = rMultiSel.current.filter(mid=>mid!==id);
+    // 체크 없으면 단일 그룹 멤버만
+    const groupMemberIds = checkedIds.length > 0
+      ? checkedIds
+      : (()=>{ const grp=rGroups.current.find(g=>g.memberIds.includes(id)); return grp?grp.memberIds.filter(mid=>mid!==id):[]; })();
     let groupOffsets = null;
-    if(grp){
+    if(groupMemberIds.length > 0){
       const allElems = [
         ...stateRef.current.texts.map(t=>({id:t.id,type:'text',xMM:t.xMM,yMM:t.yMM})),
         ...stateRef.current.photos.map(t=>({id:t.id,type:'photo',xMM:t.xMM,yMM:t.yMM})),
@@ -831,7 +837,7 @@ function CardEditor({onReset}){
         ...stateRef.current.shapes.map(t=>({id:t.id,type:'shape',xMM:t.xMM,yMM:t.yMM})),
         ...stateRef.current.icons.map(t=>({id:t.id,type:'icon',xMM:t.xMM,yMM:t.yMM})),
       ];
-      groupOffsets = grp.memberIds.filter(mid=>mid!==id).map(mid=>{
+      groupOffsets = groupMemberIds.map(mid=>{
         const el=allElems.find(e=>e.id===mid); if(!el) return null;
         return {id:mid,type:el.type,dxMM:el.xMM-elem.xMM,dyMM:el.yMM-elem.yMM};
       }).filter(Boolean);
@@ -841,10 +847,13 @@ function CardEditor({onReset}){
 
   // 그룹 리사이즈용: 멤버들의 시작 크기 스냅샷
   const buildGroupSnaps=(primaryId)=>{
-    const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId));
-    if(!grp) return null;
+    const checkedIds=rMultiSel.current.filter(mid=>mid!==primaryId);
+    const memberIds=checkedIds.length>0
+      ? checkedIds
+      : (()=>{ const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId)); return grp?grp.memberIds.filter(mid=>mid!==primaryId):[]; })();
+    if(memberIds.length===0) return null;
     const s=stateRef.current;
-    return grp.memberIds.filter(mid=>mid!==primaryId).map(mid=>{
+    return memberIds.map(mid=>{
       const t=s.texts.find(x=>x.id===mid);   if(t)  return {id:mid,type:'text', startFs:t.fs};
       const ph=s.photos.find(x=>x.id===mid); if(ph) return {id:mid,type:'photo',startW:ph.wMM,startH:ph.hMM};
       const im=s.images.find(x=>x.id===mid); if(im) return {id:mid,type:'image',startW:im.wMM,startH:im.hMM};
@@ -868,10 +877,13 @@ function CardEditor({onReset}){
 
   // 그룹 회전용: 멤버들의 시작 회전값 스냅샷
   const buildGroupRotateSnaps=(primaryId)=>{
-    const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId));
-    if(!grp) return null;
+    const checkedIds=rMultiSel.current.filter(mid=>mid!==primaryId);
+    const memberIds=checkedIds.length>0
+      ? checkedIds
+      : (()=>{ const grp=rGroups.current.find(g=>g.memberIds.includes(primaryId)); return grp?grp.memberIds.filter(mid=>mid!==primaryId):[]; })();
+    if(memberIds.length===0) return null;
     const s=stateRef.current;
-    return grp.memberIds.filter(mid=>mid!==primaryId).map(mid=>{
+    return memberIds.map(mid=>{
       const t=s.texts.find(x=>x.id===mid);   if(t)  return {id:mid,type:'text', startRotate:t.rotate||0};
       const ph=s.photos.find(x=>x.id===mid); if(ph) return {id:mid,type:'photo',startRotate:ph.rotate||0};
       const im=s.images.find(x=>x.id===mid); if(im) return {id:mid,type:'image',startRotate:im.rotate||0};
@@ -1481,7 +1493,7 @@ function CardEditor({onReset}){
         <span>Copyright 2026. MUJIMUJI Options Editor All rights reserved. &nbsp;|&nbsp; 본 서비스(에디터)의 무단 복제, 수정 및 배포를 금지합니다.</span>
         <span>문의 및 버그 제보 Mail : <a href="mailto:mujimuji.purity012@aleeas.com" style={{color:"#708090",textDecoration:"none"}}>mujimuji.purity012@aleeas.com</a></span>
       </div>
-      <div style={{position:"sticky",top:0,zIndex:200,marginRight:220,background:"#708090"}}>
+      <div style={{position:"fixed",top:copyrightH,left:0,right:220,zIndex:200,background:"#708090"}}>
       {/* ══ TOOLBAR ══ */}
       <div ref={toolbarRef} style={{background:"#708090",borderBottom:"1px solid rgba(0,0,0,.25)",padding:"6px 14px",display:"flex",alignItems:"center",justifyContent:"center",
         gap:9,flexWrap:"wrap",minHeight:46,boxShadow:"0 2px 6px rgba(0,0,0,.15)"}}>
@@ -1924,7 +1936,7 @@ function CardEditor({onReset}){
         </div>
       )}
       </div>{/* sticky 끝 */}
-      <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:220}}>
+      <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:220,paddingTop:toolbarH}}>
 
         {/* 자 + 카드 영역 */}
         <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
@@ -2837,6 +2849,7 @@ function CardEditor({onReset}){
           texts={texts} photos={photos} images={images} shapes={shapes} icons={icons}
           ppm={BASE*scale*zoom} setTexts={setTexts} setPhotos={setPhotos} setImages={setImages} setShapes={setShapes} setIcons={setIcons}
           groups={groups} setGroups={setGroups}
+          multiSel={multiSel} setMultiSel={setMultiSel}
           sel={sel} setSel={setSel}
           editBarActive={!!(sT||sSh||sIcon)} pickerActive={showIconPicker}
           onDelete={(id)=>{
@@ -3002,25 +3015,33 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
 
 
 /* ════ 레이어 패널 ════ */
-function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTexts,setPhotos,setImages,setShapes,setIcons,groups=[],setGroups,ppm=BASE,sel,setSel,editBarActive,pickerActive=false,toolbarH=46,copyrightH=32,onDelete}){
+function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTexts,setPhotos,setImages,setShapes,setIcons,groups=[],setGroups,multiSel=[],setMultiSel,ppm=BASE,sel,setSel,editBarActive,pickerActive=false,toolbarH=46,copyrightH=32,onDelete}){
   const dragRef=useRef(null);
   const [dragIdx,setDragIdx]=useState(null);
   const [overIdx,setOverIdx]=useState(null);
-  const [multiSel,setMultiSel]=useState([]);
 
   const toggleMulti=(id)=>setMultiSel(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);
 
   // 그룹 생성
   const doGroup=()=>{
     if(multiSel.length<2) return;
-    // 이미 같은 그룹에 있는 멤버가 있으면 그 그룹에 병합
     const gid=`g${Date.now()}`;
+    const memberIds=[...multiSel];
     setGroups(p=>{
-      // 선택된 id가 속한 기존 그룹들 제거하고 새 그룹으로 통합
-      const existingMembers=new Set();
-      p.forEach(g=>{g.memberIds.forEach(m=>{ if(multiSel.includes(m)) existingMembers.add(m); });});
-      const filtered=p.filter(g=>!g.memberIds.some(m=>multiSel.includes(m)));
-      return [...filtered,{id:gid,name:'그룹',memberIds:[...multiSel],collapsed:false}];
+      const filtered=p.filter(g=>!g.memberIds.some(m=>memberIds.includes(m)));
+      return [...filtered,{id:gid,name:'그룹',memberIds,collapsed:false}];
+    });
+    // 레이어 정렬: 멤버들을 그 중 가장 위(높은 인덱스)에 인접하게 모음
+    setLayers(prev=>{
+      const memberSet=new Set(memberIds);
+      const topIdx=Math.max(...memberIds.map(id=>prev.findIndex(l=>l.id===id)));
+      // 멤버가 아닌 레이어 + 멤버 레이어를 topIdx 위치에 블록으로 삽입
+      const nonMembers=prev.filter(l=>!memberSet.has(l.id));
+      const members=memberIds.map(id=>prev.find(l=>l.id===id)).filter(Boolean);
+      // topIdx는 prev 기준, nonMembers에서의 삽입 위치 계산
+      const insertAfter=prev.slice(0,topIdx+1).filter(l=>!memberSet.has(l.id)).length;
+      const result=[...nonMembers.slice(0,insertAfter),...members,...nonMembers.slice(insertAfter)];
+      return result;
     });
     setMultiSel([]);
   };
@@ -3205,70 +3226,11 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
     <div style={{position:"fixed",right:0,top:copyrightH,bottom:0,width:220,background:"#1e272e",
       borderLeft:"1px solid rgba(0,0,0,.3)",
       display:"flex",flexDirection:"column",userSelect:"none",zIndex:99}}>
-      <div style={{padding:'4px 10px 4px',fontSize:11,fontWeight:700,color:'rgba(255,255,255,.5)',
-        letterSpacing:'.08em',borderBottom:'1px solid rgba(255,255,255,.07)'}}>레이어</div>
-      {multiSel.length>=2&&(
-        <div style={{padding:'5px 6px',background:'rgba(52,152,219,.12)',borderBottom:'1px solid rgba(52,152,219,.25)',
-          display:'flex',flexDirection:'column',gap:4}}>
-          <div style={{fontSize:9,color:'rgba(255,255,255,.4)',textAlign:'center',letterSpacing:'.05em'}}>
-            {multiSel.length}개 선택됨
-          </div>
-          <div style={{display:'flex',gap:3,justifyContent:'center'}}>
-            {[
-              {t:'left',   title:'왼쪽 맞춤',   path:'M4 6h16M4 12h10M4 18h13'},
-              {t:'centerH',title:'수평 중앙',    path:'M12 3v18M7 8h10M7 16h10'},
-              {t:'right',  title:'오른쪽 맞춤',  path:'M20 6H4M20 12h-10M20 18H7'},
-              {t:'top',    title:'위쪽 맞춤',    path:'M6 4h12M12 4v16M8 20h8'},
-              {t:'centerV',title:'수직 중앙',    path:'M3 12h18M8 7v10M16 7v10'},
-              {t:'bottom', title:'아래쪽 맞춤',  path:'M6 20h12M12 4v16M8 4h8'},
-            ].map(({t,title,path})=>(
-              <button key={t} onClick={()=>doAlign(t)} title={title}
-                style={{width:26,height:26,background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.15)',
-                  borderRadius:4,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round">
-                  <path d={path}/>
-                </svg>
-              </button>
-            ))}
-          </div>
-          <div style={{display:'flex',gap:3,justifyContent:'center'}}>
-            {[
-              {axis:'h', title:'가로 간격 균등',
-               el:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                 <rect x="1" y="7" width="5" height="10" rx="1"/><rect x="10" y="5" width="4" height="14" rx="1"/><rect x="18" y="7" width="5" height="10" rx="1"/>
-                 <line x1="6" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="18" y2="12"/>
-               </svg>},
-              {axis:'v', title:'세로 간격 균등',
-               el:<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                 <rect x="7" y="1" width="10" height="5" rx="1"/><rect x="5" y="10" width="14" height="4" rx="1"/><rect x="7" y="18" width="10" height="5" rx="1"/>
-                 <line x1="12" y1="6" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/>
-               </svg>},
-            ].map(({axis,title,el})=>(
-              <button key={axis} onClick={()=>doDistribute(axis)} title={title}
-                disabled={multiSel.length<3}
-                style={{width:56,height:26,background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.15)',
-                  borderRadius:4,cursor:multiSel.length<3?'not-allowed':'pointer',
-                  opacity:multiSel.length<3?0.4:1,
-                  display:'flex',alignItems:'center',justifyContent:'center',gap:4,flexShrink:0}}>
-                {el}
-                <span style={{fontSize:9,color:'rgba(255,255,255,.7)',whiteSpace:'nowrap'}}>{axis==='h'?'가로':'세로'}</span>
-              </button>
-            ))}
-          </div>
-          <button onClick={doGroup}
-            style={{fontSize:10,color:'#f39c12',background:'rgba(243,156,18,.12)',border:'1px solid rgba(243,156,18,.3)',
-              borderRadius:4,cursor:'pointer',padding:'3px 0',fontWeight:600}}>
-            📦 그룹으로 묶기
-          </button>
-          <button onClick={()=>setMultiSel([])}
-            style={{fontSize:9,color:'rgba(255,255,255,.35)',background:'none',border:'none',cursor:'pointer',padding:'1px 0'}}>
-            선택 해제
-          </button>
-        </div>
-      )}
-      <div style={{flex:1,overflowY:"auto"}}>
-        {/* 그룹 헤더 렌더링 */}
+      <div style={{padding:'4px 10px',fontSize:11,fontWeight:700,color:'rgba(255,255,255,.5)',
+        letterSpacing:'.08em',borderBottom:'1px solid rgba(255,255,255,.07)',flexShrink:0}}>레이어</div>
+
+      {/* 레이어 목록 — 스크롤 */}
+      <div style={{flex:1,overflowY:"auto",overflowX:"hidden"}}>
         {(()=>{
           const rendered=new Set();
           const rows=[];
@@ -3276,131 +3238,80 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
           revLayers.forEach((l,revIdx)=>{
             const grp=getGroup(l.id);
             if(grp){
-              // 그룹 헤더 (처음 등장할 때 한 번만)
               if(!rendered.has(grp.id)){
                 rendered.add(grp.id);
+                const allSel=grp.memberIds.every(m=>multiSel.includes(m));
                 rows.push(
                   <div key={'grp-'+grp.id} style={{display:'flex',alignItems:'center',gap:5,
                     padding:'3px 8px 3px 6px',background:'rgba(243,156,18,.1)',
                     borderBottom:'1px solid rgba(243,156,18,.2)',borderTop:'1px solid rgba(243,156,18,.2)'}}>
-                    <span style={{fontSize:10,cursor:'pointer',userSelect:'none',color:'rgba(255,255,255,.5)'}}
-                      onClick={()=>toggleCollapse(grp.id)}>
-                      {grp.collapsed?'▶':'▼'}
-                    </span>
+                    <div onClick={e=>{e.stopPropagation();
+                      if(allSel) { setMultiSel(p=>p.filter(id=>!grp.memberIds.includes(id))); }
+                      else { setMultiSel(p=>[...new Set([...p,...grp.memberIds])]); setSel(grp.memberIds[0]); }
+                    }} style={{flexShrink:0,width:14,height:14,border:`1.5px solid ${allSel?'#f39c12':'rgba(255,255,255,.2)'}`,
+                      borderRadius:3,background:allSel?'#f39c12':'transparent',
+                      cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {allSel&&<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>}
+                    </div>
+                    <span style={{fontSize:10,cursor:'pointer',userSelect:'none',color:'rgba(255,255,255,.5)'}} onClick={()=>toggleCollapse(grp.id)}>{grp.collapsed?'▶':'▼'}</span>
                     <span style={{fontSize:10,color:'#f39c12',fontWeight:600,flex:1}}>📦 {grp.name}</span>
-                    <button onClick={()=>doUngroup(grp.id)}
-                      title="그룹 해제"
-                      style={{fontSize:9,color:'rgba(255,255,255,.4)',background:'none',border:'none',
-                        cursor:'pointer',padding:'1px 4px',borderRadius:3,lineHeight:1}}>
-                      해제
-                    </button>
+                    <button onClick={()=>doUngroup(grp.id)} style={{fontSize:9,color:'rgba(255,255,255,.4)',background:'none',border:'none',cursor:'pointer',padding:'1px 4px',borderRadius:3}}>해제</button>
                   </div>
                 );
               }
-              if(grp.collapsed) return; // 접힌 그룹은 멤버 숨김
+              if(grp.collapsed) return;
             }
             const isSel=sel===l.id;
             const isDrag=dragIdx===revIdx;
             const isOver=overIdx===revIdx&&dragIdx!==revIdx;
-            const inGroup=!!grp;
             rows.push(
-              <div key={l.id}
-                draggable
-                onDragStart={e=>onDragStart(e,revIdx)}
-                onDragOver={e=>onDragOver(e,revIdx)}
-                onDrop={e=>onDrop(e,revIdx)}
-                onDragEnd={onDragEnd}
+              <div key={l.id} draggable
+                onDragStart={e=>onDragStart(e,revIdx)} onDragOver={e=>onDragOver(e,revIdx)}
+                onDrop={e=>onDrop(e,revIdx)} onDragEnd={onDragEnd}
                 onClick={()=>{if(!l.locked)setSel(l.id);}}
-                style={{display:"flex",alignItems:"center",gap:6,
-                  padding:"5px 8px",
-                  paddingLeft:inGroup?16:8,
+                style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
+                  paddingLeft:grp?16:8,
                   background:isSel?"rgba(52,152,219,.25)":isDrag?"rgba(255,255,255,.04)":"transparent",
                   borderTop:isOver?"2px solid #3498db":"2px solid transparent",
-                  cursor:l.locked?"default":"pointer",
-                  opacity:l.visible?1:0.45,
-                  transition:"background .1s"}}>
-                {/* 체크박스 */}
+                  cursor:l.locked?"default":"pointer",opacity:l.visible?1:0.45,transition:"background .1s"}}>
                 <div onClick={e=>{e.stopPropagation();toggleMulti(l.id);}}
-                  title="다중 선택"
                   style={{flexShrink:0,width:14,height:14,border:`1.5px solid ${multiSel.includes(l.id)?'#3498db':'rgba(255,255,255,.2)'}`,
                     borderRadius:3,background:multiSel.includes(l.id)?'#3498db':'transparent',
                     cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
                   {multiSel.includes(l.id)&&<svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="1.5,5 4,7.5 8.5,2.5"/></svg>}
                 </div>
-                {/* 눈 아이콘 */}
                 <div onClick={e=>{e.stopPropagation();toggleVisible(l.id);}}
-                  title={l.visible?"숨기기":"보이기"}
-                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
-                    justifyContent:"center",cursor:"pointer",borderRadius:3,
+                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",
                     color:l.visible?"rgba(255,255,255,.8)":"rgba(255,255,255,.25)"}}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {l.visible
-                      ?<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
-                      :<><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>
-                    }
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    {l.visible?<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>:<><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></>}
                   </svg>
                 </div>
-                {/* 썸네일 */}
-                <div style={{flexShrink:0,width:28,height:28,background:"rgba(255,255,255,.08)",
-                  borderRadius:3,overflow:"hidden",display:"flex",alignItems:"center",
-                  justifyContent:"center",border:isSel?"1px solid #3498db":"1px solid transparent"}}>
+                <div style={{flexShrink:0,width:28,height:28,background:"rgba(255,255,255,.08)",borderRadius:3,overflow:"hidden",
+                  display:"flex",alignItems:"center",justifyContent:"center",border:isSel?"1px solid #3498db":"1px solid transparent"}}>
                   {getThumb(l)}
                 </div>
-                {/* 이름 */}
-                <div style={{flex:1,fontSize:11,color:isSel?"#fff":"rgba(255,255,255,.75)",
-                  overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                  {getLabel(l)}
-                </div>
-                {/* 위/아래 이동 */}
+                <div style={{flex:1,fontSize:11,color:isSel?"#fff":"rgba(255,255,255,.75)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{getLabel(l)}</div>
                 <div style={{display:"flex",flexDirection:"column",gap:1,flexShrink:0}}>
-                  <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'up');}}
-                    title="위로"
-                    style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
-                      cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
-                    onMouseEnter={e=>e.currentTarget.style.color="#fff"}
-                    onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
-                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="2,7 5,3 8,7"/>
-                    </svg>
-                  </div>
-                  <div onClick={e=>{e.stopPropagation();moveLayer(l.id,'down');}}
-                    title="아래로"
-                    style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",
-                      cursor:"pointer",borderRadius:2,color:"rgba(255,255,255,.3)",transition:"color .15s"}}
-                    onMouseEnter={e=>e.currentTarget.style.color="#fff"}
-                    onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
-                    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="2,3 5,7 8,3"/>
-                    </svg>
-                  </div>
+                  {[['up','2,7 5,3 8,7'],['down','2,3 5,7 8,3']].map(([dir,pts])=>(
+                    <div key={dir} onClick={e=>{e.stopPropagation();moveLayer(l.id,dir);}}
+                      style={{width:16,height:13,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"rgba(255,255,255,.3)"}}
+                      onMouseEnter={e=>e.currentTarget.style.color="#fff"} onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.3)"}>
+                      <svg width="9" height="9" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points={pts}/></svg>
+                    </div>
+                  ))}
                 </div>
-                {/* 잠금 아이콘 */}
-                <div onClick={e=>{e.stopPropagation();toggleLocked(l.id);if(!l.locked&&setSel)setSel(s=>s===l.id?null:s);}}
-                  title={l.locked?"잠금 해제":"잠금"}
-                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
-                    justifyContent:"center",cursor:"pointer",borderRadius:3,
-                    color:l.locked?"#e74c3c":"rgba(255,255,255,.2)"}}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    {l.locked
-                      ?<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>
-                      :<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>
-                    }
+                <div onClick={e=>{e.stopPropagation();toggleLocked(l.id);if(!l.locked)setSel(s=>s===l.id?null:s);}}
+                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:l.locked?"#e74c3c":"rgba(255,255,255,.2)"}}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    {l.locked?<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></>:<><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></>}
                   </svg>
                 </div>
-                {/* 휴지통 */}
                 <div onClick={e=>{e.stopPropagation();onDelete&&onDelete(l.id);}}
-                  title="삭제"
-                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",
-                    justifyContent:"center",cursor:"pointer",borderRadius:3,
-                    color:"rgba(255,255,255,.18)",transition:"color .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.color="#e74c3c"}
-                  onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.18)"}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
-                    <path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                  style={{flexShrink:0,width:18,height:18,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"rgba(255,255,255,.18)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="#e74c3c"} onMouseLeave={e=>e.currentTarget.style.color="rgba(255,255,255,.18)"}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
                   </svg>
                 </div>
               </div>
@@ -3409,10 +3320,67 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
           return rows;
         })()}
       </div>
+
+      {/* 하단 고정 툴바 */}
+      <div style={{flexShrink:0,borderTop:'1px solid rgba(255,255,255,.08)',background:'#17202a',padding:'5px 6px 6px',display:'flex',flexDirection:'column',gap:3}}>
+        {multiSel.length>=2&&<div style={{fontSize:9,color:'rgba(255,255,255,.35)',textAlign:'center'}}>{multiSel.length}개 선택됨</div>}
+        <div style={{display:'flex',gap:3,justifyContent:'center'}}>
+          {[
+            {t:'left',title:'왼쪽 맞춤',path:'M4 6h16M4 12h10M4 18h13'},
+            {t:'centerH',title:'수평 중앙',path:'M12 3v18M7 8h10M7 16h10'},
+            {t:'right',title:'오른쪽 맞춤',path:'M20 6H4M20 12h-10M20 18H7'},
+            {t:'top',title:'위쪽 맞춤',path:'M6 4h12M12 4v16M8 20h8'},
+            {t:'centerV',title:'수직 중앙',path:'M3 12h18M8 7v10M16 7v10'},
+            {t:'bottom',title:'아래쪽 맞춤',path:'M6 20h12M12 4v16M8 4h8'},
+          ].map(({t,title,path})=>(
+            <button key={t} onClick={()=>doAlign(t)} title={title} disabled={multiSel.length<2}
+              style={{width:26,height:26,background:'rgba(255,255,255,.08)',border:'1px solid rgba(255,255,255,.12)',
+                borderRadius:4,cursor:multiSel.length<2?'not-allowed':'pointer',opacity:multiSel.length<2?0.3:1,
+                display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round"><path d={path}/></svg>
+            </button>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:3,justifyContent:'center'}}>
+          <button onClick={()=>doDistribute('h')} title="가로 간격 균등" disabled={multiSel.length<3}
+            style={{flex:1,height:24,background:'rgba(255,255,255,.08)',border:'1px solid rgba(255,255,255,.12)',borderRadius:4,
+              cursor:multiSel.length<3?'not-allowed':'pointer',opacity:multiSel.length<3?0.3:1,
+              display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="1" y="7" width="5" height="10" rx="1"/><rect x="10" y="5" width="4" height="14" rx="1"/><rect x="18" y="7" width="5" height="10" rx="1"/>
+              <line x1="6" y1="12" x2="10" y2="12"/><line x1="14" y1="12" x2="18" y2="12"/>
+            </svg>
+            <span style={{fontSize:9,color:'rgba(255,255,255,.6)'}}>가로</span>
+          </button>
+          <button onClick={()=>doDistribute('v')} title="세로 간격 균등" disabled={multiSel.length<3}
+            style={{flex:1,height:24,background:'rgba(255,255,255,.08)',border:'1px solid rgba(255,255,255,.12)',borderRadius:4,
+              cursor:multiSel.length<3?'not-allowed':'pointer',opacity:multiSel.length<3?0.3:1,
+              display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.8)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="7" y="1" width="10" height="5" rx="1"/><rect x="5" y="10" width="14" height="4" rx="1"/><rect x="7" y="18" width="10" height="5" rx="1"/>
+              <line x1="12" y1="6" x2="12" y2="10"/><line x1="12" y1="14" x2="12" y2="18"/>
+            </svg>
+            <span style={{fontSize:9,color:'rgba(255,255,255,.6)'}}>세로</span>
+          </button>
+          <button onClick={doGroup} title="그룹으로 묶기" disabled={multiSel.length<2}
+            style={{flex:1,height:24,background:'rgba(243,156,18,.12)',border:'1px solid rgba(243,156,18,.25)',borderRadius:4,
+              cursor:multiSel.length<2?'not-allowed':'pointer',opacity:multiSel.length<2?0.3:1,
+              display:'flex',alignItems:'center',justifyContent:'center',gap:2}}>
+            <span style={{fontSize:11}}>📦</span>
+            <span style={{fontSize:9,color:'#f39c12',fontWeight:600}}>그룹</span>
+          </button>
+          {multiSel.length>=1&&(
+            <button onClick={()=>setMultiSel([])}
+              style={{flex:1,height:24,background:'rgba(255,255,255,.05)',border:'1px solid rgba(255,255,255,.1)',borderRadius:4,
+                cursor:'pointer',fontSize:9,color:'rgba(255,255,255,.4)'}}>
+              해제
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
-
 /* ════ 크롭 모달 ════ */
 function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,defaultHMM,initOrigSrc,initRadius=0,initVState=null,onApply,onCancel}){
   const canvasRef=useRef(null);
