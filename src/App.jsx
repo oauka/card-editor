@@ -824,22 +824,20 @@ function CardEditor({onReset}){
     } else if(type==="shape"||type==="photo"||type==="image"){ wMM=elem.wMM; hMM=elem.hMM;
     } else if(type==="icon"){ wMM=elem.sizeMM; hMM=elem.sizeMM; }
     setSel(id);
-    // selGroups에 있는 그룹 중 이 요소가 속하지 않은 그룹은 제거
-    if(rSelGroups.current&&rSelGroups.current.size>0){
-      const belongsToSelGroup=[...rSelGroups.current].some(gid=>{
-        const g=rGroups.current.find(g=>g.id===gid);
-        return g&&g.memberIds.includes(id);
-      });
-      if(!belongsToSelGroup){
-        rSelGroups.current=new Set();
-        setSelGroups(new Set());
-        setMultiSel([]);
-      }
-    }
+    // selGroups에 있는 그룹 중 이 요소가 속하지 않은 그룹은 유지 — 캔버스 직접 클릭 시 selGroups 유지
+    // (selGroups 해제는 레이어패널 클릭 또는 빈 영역 클릭에서만)
     // selGroups에서 이 요소가 속한 그룹 찾기 — 없으면 단독
     const grpForSel = [...(rSelGroups.current||[])].map(gid=>rGroups.current.find(g=>g.id===gid)).find(g=>g&&g.memberIds.includes(id));
     let groupOffsets = null;
     if(grpForSel){
+      // selGroups에 있는 모든 그룹의 멤버를 함께 이동
+      const allMemberIds = new Set(
+        [...(rSelGroups.current||[])].flatMap(gid=>{
+          const g=rGroups.current.find(g=>g.id===gid);
+          return g?g.memberIds:[];
+        })
+      );
+      allMemberIds.delete(id);
       const allElems = [
         ...stateRef.current.texts.map(t=>({id:t.id,type:'text',xMM:t.xMM,yMM:t.yMM})),
         ...stateRef.current.photos.map(t=>({id:t.id,type:'photo',xMM:t.xMM,yMM:t.yMM})),
@@ -847,7 +845,7 @@ function CardEditor({onReset}){
         ...stateRef.current.shapes.map(t=>({id:t.id,type:'shape',xMM:t.xMM,yMM:t.yMM})),
         ...stateRef.current.icons.map(t=>({id:t.id,type:'icon',xMM:t.xMM,yMM:t.yMM})),
       ];
-      groupOffsets = grpForSel.memberIds.filter(mid=>mid!==id).map(mid=>{
+      groupOffsets = [...allMemberIds].map(mid=>{
         const el=allElems.find(e=>e.id===mid); if(!el) return null;
         return {id:mid,type:el.type,dxMM:el.xMM-elem.xMM,dyMM:el.yMM-elem.yMM};
       }).filter(Boolean);
@@ -859,10 +857,12 @@ function CardEditor({onReset}){
   const buildGroupSnaps=(primaryId)=>{
     const grp=[...(rSelGroups.current||[])].map(gid=>rGroups.current.find(g=>g.id===gid)).find(g=>g&&g.memberIds.includes(primaryId));
     if(!grp) return null;
-    const memberIds=grp.memberIds.filter(mid=>mid!==primaryId);
-    if(memberIds.length===0) return null;
+    // selGroups의 모든 그룹 멤버 포함
+    const allMemberIds=new Set([...(rSelGroups.current||[])].flatMap(gid=>{const g=rGroups.current.find(g=>g.id===gid);return g?g.memberIds:[];}));
+    allMemberIds.delete(primaryId);
+    if(allMemberIds.size===0) return null;
     const s=stateRef.current;
-    return memberIds.map(mid=>{
+    return [...allMemberIds].map(mid=>{
       const t=s.texts.find(x=>x.id===mid);   if(t)  return {id:mid,type:'text', startFs:t.fs};
       const ph=s.photos.find(x=>x.id===mid); if(ph) return {id:mid,type:'photo',startW:ph.wMM,startH:ph.hMM};
       const im=s.images.find(x=>x.id===mid); if(im) return {id:mid,type:'image',startW:im.wMM,startH:im.hMM};
@@ -888,10 +888,11 @@ function CardEditor({onReset}){
   const buildGroupRotateSnaps=(primaryId)=>{
     const grp=[...(rSelGroups.current||[])].map(gid=>rGroups.current.find(g=>g.id===gid)).find(g=>g&&g.memberIds.includes(primaryId));
     if(!grp) return null;
-    const memberIds=grp.memberIds.filter(mid=>mid!==primaryId);
-    if(memberIds.length===0) return null;
+    const allMemberIds=new Set([...(rSelGroups.current||[])].flatMap(gid=>{const g=rGroups.current.find(g=>g.id===gid);return g?g.memberIds:[];}));
+    allMemberIds.delete(primaryId);
+    if(allMemberIds.size===0) return null;
     const s=stateRef.current;
-    return memberIds.map(mid=>{
+    return [...allMemberIds].map(mid=>{
       const t=s.texts.find(x=>x.id===mid);   if(t)  return {id:mid,type:'text', startRotate:t.rotate||0};
       const ph=s.photos.find(x=>x.id===mid); if(ph) return {id:mid,type:'photo',startRotate:ph.rotate||0};
       const im=s.images.find(x=>x.id===mid); if(im) return {id:mid,type:'image',startRotate:im.rotate||0};
@@ -1951,7 +1952,7 @@ function CardEditor({onReset}){
       <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:220,paddingTop:toolbarH}}>
 
         {/* 자 + 카드 영역 */}
-        <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);setSelGroups(new Set());setMultiSel([]);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
+        <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
           alignItems:"center",justifyContent:"center",
           padding:"60px",overflow:"auto",background:"#ecf0f1",position:"relative"}}>
 
@@ -2029,7 +2030,7 @@ function CardEditor({onReset}){
 
             {/* 카드 본체 */}
             <div ref={cardRef}
-              onClick={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setSelGroups(new Set());setMultiSel([]);}}}
+              onClick={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);}}}
               style={{position:"relative",
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
@@ -3313,10 +3314,20 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
                     onDragOver={e=>onDragOver(e,revIdx)}
                     onDrop={e=>onDrop(e,revIdx)}
                     onDragEnd={onDragEnd}
+                    onClick={()=>{
+                      if(grpActive){
+                        setSelGroups(p=>{const n=new Set(p);n.delete(grp.id);return n;});
+                        setMultiSel(p=>p.filter(id=>!grp.memberIds.includes(id)));
+                      } else {
+                        setSelGroups(p=>new Set([...p,grp.id]));
+                        setMultiSel(p=>[...new Set([...p,...grp.memberIds])]);
+                        setSel(grp.memberIds[0]);
+                      }
+                    }}
                     style={{display:'flex',alignItems:'center',gap:5,
                     padding:'3px 8px 3px 6px',
                     background:grpActive?'rgba(243,156,18,.3)':'rgba(243,156,18,.1)',
-                    cursor:'grab',
+                    cursor:'pointer',
                     borderBottom:'1px solid rgba(243,156,18,.2)',borderTop:'1px solid rgba(243,156,18,.2)'}}>
                     <div onClick={e=>{e.stopPropagation();
                       if(grpActive){
@@ -3364,7 +3375,7 @@ function LayerPanel({layers,setLayers,texts,photos,images,shapes,icons=[],setTex
               <div key={l.id} draggable
                 onDragStart={e=>onDragStart(e,revIdx)} onDragOver={e=>onDragOver(e,revIdx)}
                 onDrop={e=>onDrop(e,revIdx)} onDragEnd={onDragEnd}
-                onClick={()=>{if(!l.locked){setSel(l.id);const grp=getGroup(l.id);if(grp){setSelGroups(p=>{const n=new Set(p);n.delete(grp.id);return n;});setMultiSel(p=>p.filter(id=>!grp.memberIds.includes(id)||id===l.id));}}}}
+                onClick={()=>{if(!l.locked){setSel(l.id);}}}
                 style={{display:"flex",alignItems:"center",gap:6,padding:"5px 8px",
                   paddingLeft:grp?16:8,
                   background:isSel?"rgba(52,152,219,.25)":isDrag?"rgba(255,255,255,.04)":grp?"rgba(255,255,255,.04)":"transparent",
