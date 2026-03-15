@@ -1726,6 +1726,16 @@ function CardEditor({onReset}){
               onMouseDown={e=>e.stopPropagation()}
               style={{width:36,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
                 color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+            <div style={{display:"flex",flexDirection:"column",gap:1}}>
+              <div onClick={()=>upd(sT.id,"strokeW",(sT.strokeW||0)+1)}
+                style={{width:16,height:11,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",borderRadius:"2px 2px 0 0",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polyline points="2,7 5,3 8,7"/></svg>
+              </div>
+              <div onClick={()=>upd(sT.id,"strokeW",Math.max(0,(sT.strokeW||0)-1))}
+                style={{width:16,height:11,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",borderRadius:"0 0 2px 2px",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polyline points="2,3 5,7 8,3"/></svg>
+              </div>
+            </div>
             <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>px</span>
             <div onMouseDown={e=>e.stopPropagation()} style={{position:"relative",width:28,height:24,borderRadius:3,background:sT.strokeColor||"#000000",cursor:"pointer",flexShrink:0,overflow:"hidden"}}>
               <input type="color" value={sT.strokeColor||"#000000"}
@@ -1884,6 +1894,16 @@ function CardEditor({onReset}){
             onMouseDown={e=>e.stopPropagation()}
             style={{width:40,padding:"2px 4px",background:"rgba(0,0,0,.25)",border:"1px solid rgba(255,255,255,.2)",
               color:"#fff",borderRadius:3,fontSize:12,textAlign:"center",outline:"none"}}/>
+          <div style={{display:"flex",flexDirection:"column",gap:1}}>
+            <div onClick={()=>setPhotos(p=>p.map(ph=>ph.id!==sP.id?ph:{...ph,borderW:(ph.borderW||0)+1}))}
+              style={{width:16,height:11,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",borderRadius:"2px 2px 0 0",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polyline points="2,7 5,3 8,7"/></svg>
+            </div>
+            <div onClick={()=>setPhotos(p=>p.map(ph=>ph.id!==sP.id?ph:{...ph,borderW:Math.max(0,(ph.borderW||0)-1)}))}
+              style={{width:16,height:11,background:"rgba(255,255,255,.15)",border:"1px solid rgba(255,255,255,.2)",borderRadius:"0 0 2px 2px",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+              <svg width="8" height="8" viewBox="0 0 10 10" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"><polyline points="2,3 5,7 8,3"/></svg>
+            </div>
+          </div>
           <span style={{fontSize:11,color:"rgba(255,255,255,.5)"}}>px</span>
           <div onMouseDown={e=>e.stopPropagation()} style={{position:"relative",width:28,height:24,borderRadius:3,background:sP.borderColor||"#000",cursor:"pointer",flexShrink:0,overflow:"hidden"}}>
             <input type="color" value={sP.borderColor||"#000000"}
@@ -2950,7 +2970,7 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
   const CW=cutW*ppm, CH=cutH*ppm;
   const P=mm=>(mm-MAR)*ppm;   // 재단선 기준 좌표 (다운로드와 동일)
   const PS=mm=>mm*ppm;         // 크기 전용
-  const FSC=scale*(ppm/BASE);
+  const FSC=ppm/BASE;  // scale 미포함 — 캔버스 내보내기와 동일
 
   const renderLayer=(l)=>{
     if(!l.visible) return null;
@@ -2968,10 +2988,30 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
     if(l.type==='shape'){
       const sh=shapes.find(x=>x.id===l.id); if(!sh) return null;
       const sx=P(sh.xMM),sy=P(sh.yMM),sw=PS(sh.wMM),shh=PS(sh.hMM);
+      const stk=sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none';
       const commonStyle={position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"};
-      if(sh.type==="circle") return <svg key={sh.id} style={commonStyle}><ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sh.fill}/></svg>;
-      if(sh.type==="triangle") return <svg key={sh.id} style={commonStyle}><polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sh.fill}/></svg>;
-      return <svg key={sh.id} style={commonStyle}><rect x={0} y={0} width={sw} height={shh} rx={sh.radius||0} ry={sh.radius||0} fill={sh.fill}/></svg>;
+      const sf=sh.fill, ss=stk?sh.stroke:"none", sw2=stk?sh.strokeW:0;
+      if(sh.type==="circle") return <svg key={sh.id} style={commonStyle}><ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sf} stroke={ss} strokeWidth={sw2}/></svg>;
+      if(sh.type==="triangle") return <svg key={sh.id} style={commonStyle}><polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sf} stroke={ss} strokeWidth={sw2}/></svg>;
+      if(sh.type==="star"){
+        const spts=starPoints(sw/2,shh/2);
+        const pts=spts.map(p=>`${p.x+sw/2},${p.y+shh/2}`).join(' ');
+        return <svg key={sh.id} style={commonStyle}><polygon points={pts} fill={sf} stroke={ss} strokeWidth={sw2} strokeLinejoin="round"/></svg>;
+      }
+      if(sh.type==="heart"){
+        return <svg key={sh.id} style={commonStyle}><path d={heartSVGPath(sw/2,shh/2)} transform={`translate(${sw/2},${shh/2})`} fill={sf} stroke={ss} strokeWidth={sw2} strokeLinejoin="round"/></svg>;
+      }
+      if(sh.type==="pentagon"){
+        const ppts=polyPoints(5,sw/2,shh/2);
+        const pts=ppts.map(p=>`${p.x+sw/2},${p.y+shh/2}`).join(' ');
+        return <svg key={sh.id} style={commonStyle}><polygon points={pts} fill={sf} stroke={ss} strokeWidth={sw2} strokeLinejoin="round"/></svg>;
+      }
+      if(sh.type==="hexagon"){
+        const hpts=polyPoints(6,sw/2,shh/2,0);
+        const pts=hpts.map(p=>`${p.x+sw/2},${p.y+shh/2}`).join(' ');
+        return <svg key={sh.id} style={commonStyle}><polygon points={pts} fill={sf} stroke={ss} strokeWidth={sw2} strokeLinejoin="round"/></svg>;
+      }
+      return <svg key={sh.id} style={commonStyle}><rect x={0} y={0} width={sw} height={shh} rx={sh.radius||0} ry={sh.radius||0} fill={sf} stroke={ss} strokeWidth={sw2}/></svg>;
     }
     if(l.type==='photo'){
       const ph=photos.find(x=>x.id===l.id); if(!ph||!ph.src) return null;
@@ -2981,19 +3021,33 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
           clipPath:ph.shape==="circle"?"ellipse(50% 50% at 50% 50%)":"none",
           borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`}}>
           <img src={ph.src} draggable={false} alt="" style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
+          {(ph.borderW||0)>0&&(
+            <div style={{position:"absolute",inset:0,
+              boxShadow:`inset 0 0 0 ${ph.borderW||0}px ${ph.borderColor||"#000"}`,
+              borderRadius:ph.shape==="circle"?"50%":`${ph.radius||0}px`,pointerEvents:"none"}}/>
+          )}
         </div>
       );
     }
     if(l.type==='text'){
       const t=texts.find(x=>x.id===l.id); if(!t) return null;
       const tdec=[t.strike?"line-through":"",t.underline?"underline":""].filter(Boolean).join(" ")||"none";
+      const hasSt=t.strokeW&&t.strokeW>0;
+      const commonTextStyle={position:"absolute",left:P(t.xMM),top:P(t.yMM),
+        fontSize:t.fs*FSC,fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
+        textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",whiteSpace:"pre",lineHeight:1.4,pointerEvents:"none",
+        transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center",opacity:t.opacity??1};
       return(
-        <div key={t.id} style={{position:"absolute",left:P(t.xMM),top:P(t.yMM),
-          fontSize:t.fs*FSC,color:t.color,
-          fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
-          textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",whiteSpace:"pre",lineHeight:1.4,pointerEvents:"none",
-          transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center",opacity:t.opacity??1}}>
-          {t.text}
+        <div key={t.id} style={{position:"absolute",left:0,top:0,width:0,height:0}}>
+          {hasSt&&(
+            <div style={{...commonTextStyle,color:"transparent",
+              WebkitTextStroke:`${t.strokeW*2}px ${t.strokeColor||"#000"}`}}>
+              {t.text}
+            </div>
+          )}
+          <div style={{...commonTextStyle,color:t.color}}>
+            {t.text}
+          </div>
         </div>
       );
     }
@@ -3504,6 +3558,7 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
   const [customH,setCustomH]=useState(String(Math.round(initH/10)));
   const [wMM,setWMM]=useState(initW);
   const [hMM,setHMM]=useState(initH);
+  const [bgColor,setBgColor]=useState("transparent"); // 투명 PNG 배경색
   const fileRef2=useRef(null);
 
   const PRESETS=[
@@ -3528,7 +3583,20 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
 
     ctx.clearRect(0,0,SIZE,SIZE);
 
-    // 사진 그리기
+    // 1. 전체 배경 (체크패턴 or 배경색)
+    if(bgColor&&bgColor!=="transparent"){
+      ctx.fillStyle=bgColor;
+      ctx.fillRect(0,0,SIZE,SIZE);
+    } else {
+      const pat=document.createElement("canvas"); pat.width=10; pat.height=10;
+      const pc=pat.getContext("2d");
+      pc.fillStyle="#888"; pc.fillRect(0,0,10,10);
+      pc.fillStyle="#555"; pc.fillRect(0,0,5,5); pc.fillRect(5,5,5,5);
+      const pattern=ctx.createPattern(pat,"repeat");
+      if(pattern){ctx.fillStyle=pattern;ctx.fillRect(0,0,SIZE,SIZE);}
+    }
+
+    // 2. 사진 전체 그리기
     ctx.save();
     ctx.translate(SIZE/2,SIZE/2);
     ctx.rotate(v.current.rot*Math.PI/180);
@@ -3536,37 +3604,32 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
     ctx.drawImage(imgEl,-imgEl.width/2+v.current.ox,-imgEl.height/2+v.current.oy);
     ctx.restore();
 
-    // 크롭 영역 외부 어둡게
-    ctx.fillStyle="rgba(0,0,0,.55)";
-    ctx.fillRect(0,0,SIZE,SIZE);
-
-    // 크롭 영역 원본 사진으로 복구 (destination-out → 다시 그리기)
+    // 3. 크롭 영역 외부만 반투명 어둠으로 덮기
     ctx.save();
-    ctx.globalCompositeOperation="destination-out";
+    ctx.fillStyle="rgba(0,0,0,.5)";
+    ctx.beginPath();
+    // 전체 캔버스 (시계방향)
+    ctx.rect(0,0,SIZE,SIZE);
     if(shape==="circle"){
-      ctx.beginPath();
-      ctx.ellipse(SIZE/2,SIZE/2,bw/2,bh/2,0,0,Math.PI*2);
-      ctx.fill();
+      // 원형 뚫기 (반시계방향)
+      ctx.ellipse(SIZE/2,SIZE/2,bw/2,bh/2,0,0,Math.PI*2,true);
     } else {
       const r=curRadius>0?Math.min(curRadius,bw/2,bh/2):0;
-      if(r>0){
-        ctx.beginPath();
-        ctx.moveTo(bx+r,by); ctx.lineTo(bx+bw-r,by);
-        ctx.arcTo(bx+bw,by,bx+bw,by+r,r);
-        ctx.lineTo(bx+bw,by+bh-r);
-        ctx.arcTo(bx+bw,by+bh,bx+bw-r,by+bh,r);
-        ctx.lineTo(bx+r,by+bh);
-        ctx.arcTo(bx,by+bh,bx,by+bh-r,r);
-        ctx.lineTo(bx,by+r);
-        ctx.arcTo(bx,by,bx+r,by,r);
-        ctx.closePath(); ctx.fill();
-      } else {
-        ctx.fillRect(bx,by,bw,bh);
-      }
+      // 라운드/사각 rect 뚫기 (반시계방향)
+      ctx.moveTo(bx+r,by);
+      ctx.arcTo(bx,by,bx,by+r,r);
+      ctx.lineTo(bx,by+bh-r);
+      ctx.arcTo(bx,by+bh,bx+r,by+bh,r);
+      ctx.lineTo(bx+bw-r,by+bh);
+      ctx.arcTo(bx+bw,by+bh,bx+bw,by+bh-r,r);
+      ctx.lineTo(bx+bw,by+r);
+      ctx.arcTo(bx+bw,by,bx+bw-r,by,r);
+      ctx.closePath();
     }
+    ctx.fill("evenodd");
     ctx.restore();
 
-    // 사진 다시 크롭 영역에만 그리기
+    // 4. 크롭 영역에 사진 다시 클립해서 그리기 (선명하게)
     ctx.save();
     if(shape==="circle"){
       ctx.beginPath();
@@ -3595,8 +3658,8 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
     ctx.drawImage(imgEl,-imgEl.width/2+v.current.ox,-imgEl.height/2+v.current.oy);
     ctx.restore();
 
-    // 테두리
-    ctx.strokeStyle="rgba(255,255,255,.8)"; ctx.lineWidth=1.5;
+    // 크롭 경계 표시
+    ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=2; ctx.setLineDash([6,3]);
     if(shape==="circle"){
       ctx.beginPath();
       ctx.ellipse(SIZE/2,SIZE/2,bw/2,bh/2,0,0,Math.PI*2);
@@ -3616,6 +3679,7 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
         ctx.closePath(); ctx.stroke();
       } else { ctx.strokeRect(bx,by,bw,bh); }
     }
+    ctx.setLineDash([]);
 
     if(withHandles){
       const CORNER=12;
@@ -3627,14 +3691,14 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
       const ax=hx+6.75*Math.cos(Math.PI*1.5), ay=hy+6.75*Math.sin(Math.PI*1.5);
       ctx.beginPath(); ctx.moveTo(ax-4,ay-1.5); ctx.lineTo(ax,ay+4.5); ctx.lineTo(ax+4,ay-1.5); ctx.stroke();
     }
-  },[img,shape,wMM,hMM,radius]);
+  },[img,shape,wMM,hMM,radius,bgColor]);
 
   const draw=useCallback(()=>{
     const canvas=canvasRef.current; if(!canvas) return;
     const ctx=canvas.getContext("2d");
     const imgEl=new window.Image(); imgEl.src=img;
     imgEl.onload=()=>drawBase(ctx,imgEl,true,radius);
-  },[img,drawBase]);
+  },[img,drawBase,bgColor]);
 
   // 이미지 바뀔 때 크롭 박스에 맞게 초기 스케일 자동 설정 (initVState 없을 때만)
   const isFirstLoad=useRef(true);
@@ -3734,6 +3798,11 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
       const out=document.createElement("canvas");
       out.width=outW; out.height=outH;
       const octx=out.getContext("2d");
+      // 배경색 적용
+      if(bgColor&&bgColor!=="transparent"){
+        octx.fillStyle=bgColor;
+        octx.fillRect(0,0,outW,outH);
+      }
       // 이미지 그리기
       const dispScale=v.current.scale;
       const dispOx=v.current.ox, dispOy=v.current.oy;
@@ -3792,7 +3861,7 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
         </div>
 
         {shape==="rect"&&(
-          <div style={{display:"flex",alignItems:"center",gap:6,width:"100%"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:6,width:"100%",flexWrap:"wrap"}}>
             {[0,5,10,20,30].map(r=>(
               <button key={r} onClick={()=>setRadius(r)} lang="en"
                 style={{padding:"3px 7px",fontSize:11,borderRadius:4,cursor:"pointer",
@@ -3832,9 +3901,39 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
             style={{...unselBtn,padding:"3px 10px",whiteSpace:"nowrap"}}>적용</button>
         </div>
 
+        {/* 배경색 */}
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:8,width:"100%"}}>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.6)",whiteSpace:"nowrap"}}>배경색</span>
+          <div style={{display:"flex",gap:5,alignItems:"center"}}>
+            <div onClick={()=>setBgColor("transparent")}
+              title="투명"
+              style={{width:22,height:22,borderRadius:3,cursor:"pointer",flexShrink:0,
+                background:"repeating-conic-gradient(#888 0% 25%,#555 0% 50%) 0 0/8px 8px",
+                border:bgColor==="transparent"?"2px solid #3498db":"2px solid rgba(255,255,255,.2)"}}/>
+            <div onClick={()=>setBgColor("#ffffff")}
+              title="흰색"
+              style={{width:22,height:22,borderRadius:3,cursor:"pointer",flexShrink:0,background:"#ffffff",
+                border:bgColor==="#ffffff"?"2px solid #3498db":"2px solid rgba(255,255,255,.2)"}}/>
+            <div onClick={()=>setBgColor("#000000")}
+              title="검정"
+              style={{width:22,height:22,borderRadius:3,cursor:"pointer",flexShrink:0,background:"#000000",
+                border:bgColor==="#000000"?"2px solid #3498db":"2px solid rgba(255,255,255,.2)"}}/>
+            <div style={{position:"relative",width:22,height:22,borderRadius:3,flexShrink:0,
+              background:!["transparent","#ffffff","#000000"].includes(bgColor)
+                ? bgColor
+                : "linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)",
+              border:!["transparent","#ffffff","#000000"].includes(bgColor)?"2px solid #3498db":"2px solid rgba(255,255,255,.2)",
+              cursor:"pointer",overflow:"hidden"}} title="커스텀 색상">
+              <input type="color" value={!["transparent","#ffffff","#000000"].includes(bgColor)?bgColor:"#ff6600"}
+                onChange={e=>setBgColor(e.target.value)}
+                style={{position:"absolute",inset:0,opacity:0,width:"100%",height:"100%",cursor:"pointer",padding:0,border:"none"}}/>
+            </div>
+          </div>
+        </div>
+
         {/* 4. 캔버스 */}
         <canvas ref={canvasRef} width={SIZE} height={SIZE}
-          style={{borderRadius:6,cursor:"move",background:"#1a252f",width:SIZE,height:SIZE}}
+          style={{borderRadius:6,cursor:"move",width:SIZE,height:SIZE}}
           onMouseDown={onCanvasMouseDown}
           onWheel={onWheel}/>
 
