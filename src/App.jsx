@@ -442,7 +442,7 @@ function CardEditor({onReset}){
     const snap = {
       label: `슬롯${slot}`,
       texts:  JSON.parse(JSON.stringify(s.texts)),
-      photos: s.photos.map(ph=>({...ph, src:null, imgX:0, imgY:0, imgScale:1})), // 이미지 제외
+      photos: s.photos.map(ph=>({...ph, src:null, imgX:0, imgY:0, imgScale:1, vState:null})), // 이미지만 제외, 스타일(radius/shape 등) 유지
       images: [], // 이미지 파일 제외
       shapes: JSON.parse(JSON.stringify(s.shapes)),
       icons:  JSON.parse(JSON.stringify(s.icons)),
