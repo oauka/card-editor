@@ -521,19 +521,11 @@ function CardEditor({onReset}){
   const rGuides      = useRef(guides);      rGuides.current=guides;
   const rSnapEnabled = useRef(snapEnabled); rSnapEnabled.current=snapEnabled;
 
-  const eDrag   = useRef(null);
-  const rDrag   = useRef(null);
-  const iResize = useRef(null);
-  const iEdgeDrag = useRef(null); // {id,edge,startW,startH,startX,startY,xMM,yMM}
-  const sResize = useRef(null);
-  const iRotate = useRef(null);
-  const tRotate = useRef(null);
-  const tResize = useRef(null);
-  const phRotate = useRef(null);
-  const shRotate = useRef(null);
-  const iconRotate = useRef(null);
-  const iconResize = useRef(null);
-  const gDrag   = useRef(null);
+  // 통합 드래그 상태 ref — mode 필드로 분기
+  // mode: 'elemDrag'|'photoResize'|'imageResize'|'imageEdgeResize'|'shapeResize'
+  //       |'imageRotate'|'textRotate'|'textResize'|'photoRotate'|'shapeRotate'
+  //       |'iconRotate'|'iconResize'|'guideDrag'
+  const drag = useRef(null);
   const fileRef    = useRef(null);
   const imgFileRef = useRef(null);
   const cardRef    = useRef(null);
@@ -586,187 +578,162 @@ function CardEditor({onReset}){
   /* ── 포인터 이벤트 ── */
   useEffect(()=>{
     const gc = e=>e.touches?e.touches[0]:e;
+    // 회전 공통: 현재 각도 − 시작 각도
+    const calcRotDelta=(cl,d)=>{
+      const cur=Math.atan2(cl.clientY-d.cy,cl.clientX-d.cx)*180/Math.PI;
+      let delta=cur-d.startAngle; if(delta>180)delta-=360; if(delta<-180)delta+=360;
+      return delta;
+    };
     const onMove = e=>{
-      if(!eDrag.current&&!rDrag.current&&!iResize.current&&!iRotate.current&&!tRotate.current&&!tResize.current&&!sResize.current&&!shRotate.current&&!iconRotate.current&&!iconResize.current&&!gDrag.current&&!phRotate.current&&!iEdgeDrag.current) return;
+      const d=drag.current; if(!d) return;
       const cl=gc(e);
       const csMM={w:rCardW.current, h:rCardH.current};
       const ppm=BASE*rScale.current*rZoom.current;
 
-      // 이미지 회전
-      if(iRotate.current){
-        const {id,cx,cy,startAngle,startRotate,groupSnaps}=iRotate.current;
-        const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
-        let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
-        setImages(p=>p.map(im=>im.id!==id?im:{...im,rotate:startRotate+d}));
-        if(groupSnaps) applyGroupRotate(groupSnaps,d);
-        return;
-      }
-      // 텍스트 회전
-      if(tRotate.current){
-        const {id,cx,cy,startAngle,startRotate,groupSnaps}=tRotate.current;
-        const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
-        let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
-        setTexts(p=>p.map(t=>t.id!==id?t:{...t,rotate:startRotate+d}));
-        if(groupSnaps) applyGroupRotate(groupSnaps,d);
-        return;
-      }
-      // 텍스트 리사이즈
-      if(tResize.current){
-        const {id,startFs,startCY,startCX,groupSnaps}=tResize.current;
-        const d=(cl.clientX-startCX+cl.clientY-startCY)/2;
-        const newFs=Math.max(4,Math.round(startFs+d/2));
-        setTexts(p=>p.map(t=>t.id!==id?t:{...t,fs:newFs}));
-        if(groupSnaps&&startFs>0) applyGroupResize(groupSnaps,newFs/startFs,newFs/startFs);
-        return;
-      }
-      // 가이드 드래그
-      if(gDrag.current){
-        const {id,type,startPosMM,startClient}=gDrag.current;
-        let newMM;
-        if(type==="h") newMM=startPosMM+(cl.clientY-startClient)/ppm;
-        else           newMM=startPosMM+(cl.clientX-startClient)/ppm;
-        newMM=Math.max(0,Math.min(newMM,type==="h"?csMM.h:csMM.w));
-        setGuides(g=>g.map(gd=>gd.id!==id?gd:{...gd,posMM:newMM}));
-        return;
-      }
-      // 사진 리사이즈
-      if(rDrag.current){
-        const {id,startW,startH,startCX,startCY,groupSnaps}=rDrag.current;
-        const aspect=startW/startH;
-        const dxMM=(cl.clientX-startCX)/ppm, dyMM=(cl.clientY-startCY)/ppm;
-        const delta=(Math.abs(dxMM)>Math.abs(dyMM)?dxMM:dyMM);
-        const newW=Math.max(8,startW+delta);
-        const newH=newW/aspect;
-        setPhotos(p=>p.map(ph=>ph.id!==id?ph:{...ph,wMM:newW,hMM:newH}));
-        if(groupSnaps) applyGroupResize(groupSnaps,newW/startW,newH/startH);
-        return;
-      }
-      // 이미지 리사이즈
-      if(iResize.current){
-        const {id,startW,startH,startCX,startCY,aspect,groupSnaps}=iResize.current;
-        const dxMM=(cl.clientX-startCX)/ppm;
-        const newW=Math.max(5,startW+dxMM);
-        const newH=newW/aspect;
-        setImages(p=>p.map(im=>im.id!==id?im:{...im,wMM:newW,hMM:newH}));
-        if(groupSnaps) applyGroupResize(groupSnaps,newW/startW,newH/startH);
-        return;
-      }
-      // 이미지 엣지 리사이즈 (4면, 비율 무관)
-      if(iEdgeDrag.current){
-        const {id,edge,startW,startH,startX,startY,startXMM,startYMM}=iEdgeDrag.current;
-        const dxMM=(cl.clientX-startX)/ppm;
-        const dyMM=(cl.clientY-startY)/ppm;
-        setImages(p=>p.map(im=>{
-          if(im.id!==id) return im;
-          let {wMM,hMM,xMM,yMM}={wMM:startW,hMM:startH,xMM:startXMM,yMM:startYMM};
-          if(edge==='right')  { wMM=Math.max(3,startW+dxMM); }
-          if(edge==='left')   { const nw=Math.max(3,startW-dxMM); xMM=startXMM+startW-nw; wMM=nw; }
-          if(edge==='bottom') { hMM=Math.max(3,startH+dyMM); }
-          if(edge==='top')    { const nh=Math.max(3,startH-dyMM); yMM=startYMM+startH-nh; hMM=nh; }
-          return {...im,wMM,hMM,xMM,yMM};
-        }));
-        return;
-      }
-      // 아이콘 회전
-      if(iconRotate.current){
-        const {id,cx,cy,startAngle,startRotate,groupSnaps}=iconRotate.current;
-        const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
-        let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
-        setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,rotate:(startRotate||0)+d}));
-        if(groupSnaps) applyGroupRotate(groupSnaps,d);
-        return;
-      }
-      // 아이콘 리사이즈
-      if(iconResize.current){
-        const {id,startSz,startCX,startCY,groupSnaps}=iconResize.current;
-        const d=(cl.clientX-startCX+cl.clientY-startCY)/2;
-        const newSz=Math.max(3,startSz+d/BASE);
-        setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,sizeMM:newSz}));
-        if(groupSnaps) applyGroupResize(groupSnaps,newSz/startSz,newSz/startSz);
-        return;
-      }
-      // 사진 회전
-      if(phRotate.current){
-        const {id,cx,cy,startAngle,startRotate,groupSnaps}=phRotate.current;
-        const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
-        let dv=cur-startAngle; if(dv>180)dv-=360; if(dv<-180)dv+=360;
-        setPhotos(p=>p.map(ph=>ph.id!==id?ph:{...ph,rotate:(startRotate||0)+dv}));
-        if(groupSnaps) applyGroupRotate(groupSnaps,dv);
-        return;
-      }
-      // 도형 회전
-      if(shRotate.current){
-        const {id,cx,cy,startAngle,startRotate,groupSnaps}=shRotate.current;
-        const cur=Math.atan2(cl.clientY-cy,cl.clientX-cx)*180/Math.PI;
-        let d=cur-startAngle; if(d>180)d-=360; if(d<-180)d+=360;
-        setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,rotate:(startRotate||0)+d}));
-        if(groupSnaps) applyGroupRotate(groupSnaps,d);
-        return;
-      }
-      // 도형 리사이즈
-      if(sResize.current){
-        const {id,startW,startH,startCX,startCY,groupSnaps}=sResize.current;
-        const dxMM=(cl.clientX-startCX)/ppm, dyMM=(cl.clientY-startCY)/ppm;
-        const newW=Math.max(2,startW+dxMM), newH=Math.max(2,startH+dyMM);
-        setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,wMM:newW,hMM:newH}));
-        if(groupSnaps) applyGroupResize(groupSnaps,newW/startW,newH/startH);
-        return;
-      }
-      // 요소 드래그
-      if(eDrag.current){
-        const {id,type,startXMM,startYMM,startCX,startCY}=eDrag.current;
-        const dxPx=cl.clientX-startCX, dyPx=cl.clientY-startCY;
-        // 4px 이상 움직여야 드래그 시작 (클릭 오인식 방지)
-        if(!eDrag.current.moved){
-          if(Math.abs(dxPx)<4&&Math.abs(dyPx)<4) return;
-          eDrag.current.moved=true;
-          e.preventDefault?.();
+      switch(d.mode){
+        case 'imageRotate': {
+          const delta=calcRotDelta(cl,d);
+          setImages(p=>p.map(im=>im.id!==d.id?im:{...im,rotate:d.startRotate+delta}));
+          if(d.groupSnaps) applyGroupRotate(d.groupSnaps,delta);
+          return;
         }
-        const xMM=startXMM+dxPx/ppm;
-        const yMM=startYMM+dyPx/ppm;
-        // 스냅 — 좌/우 엣지, 상/하 엣지만 체크 (센터 제외)
-        let sx=xMM, sy=yMM;
-        const {wMM:ew=0,hMM:eh=0}=eDrag.current;
-        if(rSnapEnabled.current){
-          let bestDx=SNAP_DIST, bestDy=SNAP_DIST;
-          for(const g of rGuides.current.filter(gd=>gd.visible)){
-            if(g.type==="v"){
-              const dl=Math.abs(xMM-g.posMM);
-              const dr=Math.abs(xMM+ew-g.posMM);
-              if(dl<bestDx){ bestDx=dl; sx=g.posMM; }
-              if(dr<bestDx){ bestDx=dr; sx=g.posMM-ew; }
-            }
-            if(g.type==="h"){
-              const dt=Math.abs(yMM-g.posMM);
-              const db=Math.abs(yMM+eh-g.posMM);
-              if(dt<bestDy){ bestDy=dt; sy=g.posMM; }
-              if(db<bestDy){ bestDy=db; sy=g.posMM-eh; }
+        case 'textRotate': {
+          const delta=calcRotDelta(cl,d);
+          setTexts(p=>p.map(t=>t.id!==d.id?t:{...t,rotate:d.startRotate+delta}));
+          if(d.groupSnaps) applyGroupRotate(d.groupSnaps,delta);
+          return;
+        }
+        case 'photoRotate': {
+          const delta=calcRotDelta(cl,d);
+          setPhotos(p=>p.map(ph=>ph.id!==d.id?ph:{...ph,rotate:(d.startRotate||0)+delta}));
+          if(d.groupSnaps) applyGroupRotate(d.groupSnaps,delta);
+          return;
+        }
+        case 'shapeRotate': {
+          const delta=calcRotDelta(cl,d);
+          setShapes(p=>p.map(sh=>sh.id!==d.id?sh:{...sh,rotate:(d.startRotate||0)+delta}));
+          if(d.groupSnaps) applyGroupRotate(d.groupSnaps,delta);
+          return;
+        }
+        case 'iconRotate': {
+          const delta=calcRotDelta(cl,d);
+          setIcons(p=>p.map(ic=>ic.id!==d.id?ic:{...ic,rotate:(d.startRotate||0)+delta}));
+          if(d.groupSnaps) applyGroupRotate(d.groupSnaps,delta);
+          return;
+        }
+        case 'textResize': {
+          const mv=(cl.clientX-d.startCX+cl.clientY-d.startCY)/2;
+          const newFs=Math.max(4,Math.round(d.startFs+mv/2));
+          setTexts(p=>p.map(t=>t.id!==d.id?t:{...t,fs:newFs}));
+          if(d.groupSnaps&&d.startFs>0) applyGroupResize(d.groupSnaps,newFs/d.startFs,newFs/d.startFs);
+          return;
+        }
+        case 'guideDrag': {
+          let newMM;
+          if(d.type==="h") newMM=d.startPosMM+(cl.clientY-d.startClient)/ppm;
+          else              newMM=d.startPosMM+(cl.clientX-d.startClient)/ppm;
+          newMM=Math.max(0,Math.min(newMM,d.type==="h"?csMM.h:csMM.w));
+          setGuides(g=>g.map(gd=>gd.id!==d.id?gd:{...gd,posMM:newMM}));
+          return;
+        }
+        case 'photoResize': {
+          const aspect=d.startW/d.startH;
+          const dxMM=(cl.clientX-d.startCX)/ppm, dyMM=(cl.clientY-d.startCY)/ppm;
+          const delta=(Math.abs(dxMM)>Math.abs(dyMM)?dxMM:dyMM);
+          const newW=Math.max(8,d.startW+delta);
+          const newH=newW/aspect;
+          setPhotos(p=>p.map(ph=>ph.id!==d.id?ph:{...ph,wMM:newW,hMM:newH}));
+          if(d.groupSnaps) applyGroupResize(d.groupSnaps,newW/d.startW,newH/d.startH);
+          return;
+        }
+        case 'imageResize': {
+          const dxMM=(cl.clientX-d.startCX)/ppm;
+          const newW=Math.max(5,d.startW+dxMM);
+          const newH=newW/d.aspect;
+          setImages(p=>p.map(im=>im.id!==d.id?im:{...im,wMM:newW,hMM:newH}));
+          if(d.groupSnaps) applyGroupResize(d.groupSnaps,newW/d.startW,newH/d.startH);
+          return;
+        }
+        case 'imageEdgeResize': {
+          const dxMM=(cl.clientX-d.startX)/ppm;
+          const dyMM=(cl.clientY-d.startY)/ppm;
+          setImages(p=>p.map(im=>{
+            if(im.id!==d.id) return im;
+            let {wMM,hMM,xMM,yMM}={wMM:d.startW,hMM:d.startH,xMM:d.startXMM,yMM:d.startYMM};
+            if(d.edge==='right')  { wMM=Math.max(3,d.startW+dxMM); }
+            if(d.edge==='left')   { const nw=Math.max(3,d.startW-dxMM); xMM=d.startXMM+d.startW-nw; wMM=nw; }
+            if(d.edge==='bottom') { hMM=Math.max(3,d.startH+dyMM); }
+            if(d.edge==='top')    { const nh=Math.max(3,d.startH-dyMM); yMM=d.startYMM+d.startH-nh; hMM=nh; }
+            return {...im,wMM,hMM,xMM,yMM};
+          }));
+          return;
+        }
+        case 'iconResize': {
+          const mv=(cl.clientX-d.startCX+cl.clientY-d.startCY)/2;
+          const newSz=Math.max(3,d.startSz+mv/BASE);
+          setIcons(p=>p.map(ic=>ic.id!==d.id?ic:{...ic,sizeMM:newSz}));
+          if(d.groupSnaps) applyGroupResize(d.groupSnaps,newSz/d.startSz,newSz/d.startSz);
+          return;
+        }
+        case 'shapeResize': {
+          const dxMM=(cl.clientX-d.startCX)/ppm, dyMM=(cl.clientY-d.startCY)/ppm;
+          const newW=Math.max(2,d.startW+dxMM), newH=Math.max(2,d.startH+dyMM);
+          setShapes(p=>p.map(sh=>sh.id!==d.id?sh:{...sh,wMM:newW,hMM:newH}));
+          if(d.groupSnaps) applyGroupResize(d.groupSnaps,newW/d.startW,newH/d.startH);
+          return;
+        }
+        case 'elemDrag': {
+          const dxPx=cl.clientX-d.startCX, dyPx=cl.clientY-d.startCY;
+          // 이미 선택된 요소 재클릭 시(더블클릭 의도) 임계값을 높여 오인식 방지
+          const threshold = d.resel ? 15 : 4;
+          if(!d.moved){
+            if(Math.abs(dxPx)<threshold&&Math.abs(dyPx)<threshold) return;
+            d.moved=true;
+            e.preventDefault?.();
+          }
+          const xMM=d.startXMM+dxPx/ppm;
+          const yMM=d.startYMM+dyPx/ppm;
+          // 스냅 — 좌/우 엣지, 상/하 엣지만 체크 (센터 제외)
+          let sx=xMM, sy=yMM;
+          const {wMM:ew=0,hMM:eh=0}=d;
+          if(rSnapEnabled.current){
+            let bestDx=SNAP_DIST, bestDy=SNAP_DIST;
+            for(const g of rGuides.current.filter(gd=>gd.visible)){
+              if(g.type==="v"){
+                const dl=Math.abs(xMM-g.posMM);
+                const dr=Math.abs(xMM+ew-g.posMM);
+                if(dl<bestDx){ bestDx=dl; sx=g.posMM; }
+                if(dr<bestDx){ bestDx=dr; sx=g.posMM-ew; }
+              }
+              if(g.type==="h"){
+                const dt=Math.abs(yMM-g.posMM);
+                const db=Math.abs(yMM+eh-g.posMM);
+                if(dt<bestDy){ bestDy=dt; sy=g.posMM; }
+                if(db<bestDy){ bestDy=db; sy=g.posMM-eh; }
+              }
             }
           }
-        }
-        if(type==="text") setTexts(p=>p.map(t=>t.id!==id?t:{...t,xMM:sx,yMM:sy}));
-        else if(type==="photo") setPhotos(p=>p.map(ph=>ph.id!==id?ph:{...ph,xMM:sx,yMM:sy}));
-        else if(type==="image") setImages(p=>p.map(im=>im.id!==id?im:{...im,xMM:sx,yMM:sy}));
-        else if(type==="shape") setShapes(p=>p.map(sh=>sh.id!==id?sh:{...sh,xMM:sx,yMM:sy}));
-        else if(type==="icon") setIcons(p=>p.map(ic=>ic.id!==id?ic:{...ic,xMM:sx,yMM:sy}));
-        // 그룹 멤버 함께 이동
-        const {groupOffsets}=eDrag.current;
-        if(groupOffsets&&groupOffsets.length>0){
-          const mIds={text:new Set(),photo:new Set(),image:new Set(),shape:new Set(),icon:new Set()};
-          const mPos={};
-          groupOffsets.forEach(m=>{mIds[m.type]?.add(m.id);mPos[m.id]={x:sx+m.dxMM,y:sy+m.dyMM};});
-          if(mIds.text.size)   setTexts(p=>p.map(t=>mIds.text.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
-          if(mIds.photo.size)  setPhotos(p=>p.map(t=>mIds.photo.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
-          if(mIds.image.size)  setImages(p=>p.map(t=>mIds.image.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
-          if(mIds.shape.size)  setShapes(p=>p.map(t=>mIds.shape.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
-          if(mIds.icon.size)   setIcons(p=>p.map(t=>mIds.icon.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+          if(d.type==="text") setTexts(p=>p.map(t=>t.id!==d.id?t:{...t,xMM:sx,yMM:sy}));
+          else if(d.type==="photo") setPhotos(p=>p.map(ph=>ph.id!==d.id?ph:{...ph,xMM:sx,yMM:sy}));
+          else if(d.type==="image") setImages(p=>p.map(im=>im.id!==d.id?im:{...im,xMM:sx,yMM:sy}));
+          else if(d.type==="shape") setShapes(p=>p.map(sh=>sh.id!==d.id?sh:{...sh,xMM:sx,yMM:sy}));
+          else if(d.type==="icon") setIcons(p=>p.map(ic=>ic.id!==d.id?ic:{...ic,xMM:sx,yMM:sy}));
+          // 그룹 멤버 함께 이동
+          if(d.groupOffsets&&d.groupOffsets.length>0){
+            const mIds={text:new Set(),photo:new Set(),image:new Set(),shape:new Set(),icon:new Set()};
+            const mPos={};
+            d.groupOffsets.forEach(m=>{mIds[m.type]?.add(m.id);mPos[m.id]={x:sx+m.dxMM,y:sy+m.dyMM};});
+            if(mIds.text.size)   setTexts(p=>p.map(t=>mIds.text.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+            if(mIds.photo.size)  setPhotos(p=>p.map(t=>mIds.photo.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+            if(mIds.image.size)  setImages(p=>p.map(t=>mIds.image.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+            if(mIds.shape.size)  setShapes(p=>p.map(t=>mIds.shape.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+            if(mIds.icon.size)   setIcons(p=>p.map(t=>mIds.icon.has(t.id)?{...t,xMM:mPos[t.id].x,yMM:mPos[t.id].y}:t));
+          }
+          return;
         }
       }
     };
-    const onUp=()=>{
-      eDrag.current=null; rDrag.current=null; iResize.current=null;
-      iRotate.current=null; tRotate.current=null; tResize.current=null; sResize.current=null; shRotate.current=null; iconRotate.current=null; iconResize.current=null; gDrag.current=null; phRotate.current=null; iEdgeDrag.current=null;
-    };
+    const onUp=()=>{ drag.current=null; };
     window.addEventListener("mousemove",onMove);
     window.addEventListener("mouseup",onUp);
     window.addEventListener("touchmove",onMove,{passive:false});
@@ -850,7 +817,7 @@ function CardEditor({onReset}){
         return {id:mid,type:el.type,dxMM:el.xMM-elem.xMM,dyMM:el.yMM-elem.yMM};
       }).filter(Boolean);
     }
-    eDrag.current={id,type,startXMM:elem.xMM,startYMM:elem.yMM,startCX:cl.clientX,startCY:cl.clientY,wMM,hMM,groupOffsets};
+    drag.current={mode:'elemDrag',id,type,startXMM:elem.xMM,startYMM:elem.yMM,startCX:cl.clientX,startCY:cl.clientY,wMM,hMM,groupOffsets,resel:sel===id};
   };
 
   // 그룹 리사이즈용: 멤버들의 시작 크기 스냅샷
@@ -2030,7 +1997,7 @@ function CardEditor({onReset}){
           </div>
 
           {/* 자 + 카드 컨테이너 */}
-          <div style={{position:"relative",display:"inline-block",flexShrink:0,verticalAlign:"top",contain:"layout"}}>
+          <div style={{position:"relative",width:RULER_SZ+CW,height:RULER_SZ+CH,flexShrink:0,contain:"layout"}}>
             {/* 가이드 전체 보이기/숨기기 — 가로 자 왼쪽 */}
             {guides.length>0&&(
               <div
@@ -2065,7 +2032,7 @@ function CardEditor({onReset}){
                 const posMM=Math.max(0,Math.min((e.clientY-rect.top)/(BASE*rScale.current*rZoom.current),cs.h));
                 setGuides(g=>[...g,{id,type:"h",posMM,visible:true}]);
                 setSelGuide(id);
-                gDrag.current={id,type:"h",startPosMM:posMM,startClient:e.clientY};
+                drag.current={mode:'guideDrag',id,type:"h",startPosMM:posMM,startClient:e.clientY};
               }}>
               <rect x={RULER_SZ} y={0} width={CW} height={RULER_SZ} fill="#d5d8dc"/>
               {rulerH}
@@ -2081,7 +2048,7 @@ function CardEditor({onReset}){
                 const posMM=Math.max(0,Math.min((e.clientX-rect.left)/(BASE*rScale.current*rZoom.current),cs.w));
                 setGuides(g=>[...g,{id,type:"v",posMM,visible:true}]);
                 setSelGuide(id);
-                gDrag.current={id,type:"v",startPosMM:posMM,startClient:e.clientX};
+                drag.current={mode:'guideDrag',id,type:"v",startPosMM:posMM,startClient:e.clientX};
               }}>
               <rect x={0} y={RULER_SZ} width={RULER_SZ} height={CH} fill="#d5d8dc"/>
               {rulerV}
@@ -2094,7 +2061,7 @@ function CardEditor({onReset}){
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
-                overflow:"hidden",cursor:"default",flexShrink:0,
+                overflow:"clip",cursor:"default",flexShrink:0,
                 isolation:"isolate"}}>
 
               {grid&&(
@@ -2108,7 +2075,7 @@ function CardEditor({onReset}){
                   onMouseDown={e=>{
                     e.stopPropagation(); e.preventDefault();
                     setSelGuide(g.id); setSel(g.id);
-                    gDrag.current={id:g.id,type:g.type,startPosMM:g.posMM,
+                    drag.current={mode:'guideDrag',id:g.id,type:g.type,startPosMM:g.posMM,
                       startClient:g.type==="h"?e.clientY:e.clientX};
                   }}
                   onClick={e=>e.stopPropagation()}
@@ -2302,15 +2269,15 @@ function CardEditor({onReset}){
                       opacity:t.opacity??1,
                       transform:`rotate(${rot}deg) scaleX(${t.flipX?-1:1})`,transformOrigin:"center center"}}>
                     {isEditing?(
-                      <input autoFocus
+                      <input
                         defaultValue={t.text}
-                        onChange={e=>{upd(t.id,"text",e.target.value);e.target.style.width="1px";e.target.style.width=e.target.scrollWidth+"px";}}
+                        onChange={e=>{upd(t.id,"text",e.target.value);const el=e.target;el.style.width="1px";el.style.width=el.scrollWidth+"px";}}
                         onBlur={()=>setEditing(null)}
                         onKeyDown={e=>{if(e.key==="Enter"||e.key==="Escape"){e.preventDefault();setEditing(null);}e.stopPropagation();}}
                         onPaste={e=>e.stopPropagation()}
                         onClick={e=>e.stopPropagation()}
                         onMouseDown={e=>e.stopPropagation()}
-                        ref={el=>{if(el){el.style.width="1px";el.style.width=el.scrollWidth+"px";}}}
+                        ref={el=>{if(el&&!el.dataset.sized){el.style.width="1px";el.style.width=el.scrollWidth+"px";el.dataset.sized="1";el.focus({preventScroll:true});}}}
                         style={{fontSize:t.fs*FSC,color:t.color,
                           fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
                           textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",lineHeight:1.4,
@@ -2394,7 +2361,7 @@ function CardEditor({onReset}){
                   <div onMouseDown={e=>{
                       e.stopPropagation();e.preventDefault();
                       const cr=cardRef.current.getBoundingClientRect();
-                      phRotate.current={id:ph.id,
+                      drag.current={mode:'photoRotate',id:ph.id,
                         cx:cr.left+px+pw/2, cy:cr.top+py+ph_h/2,
                         startAngle:Math.atan2(e.clientY-(cr.top+py+ph_h/2),e.clientX-(cr.left+px+pw/2))*180/Math.PI,
                         startRotate:ph.rotate||0, groupSnaps:buildGroupRotateSnaps(ph.id)};
@@ -2410,7 +2377,7 @@ function CardEditor({onReset}){
                   </div>
                   {/* 리사이즈 - 우하단 바깥 */}
                   <div onMouseDown={e=>{e.stopPropagation();e.preventDefault();
-                      rDrag.current={id:ph.id,startW:ph.wMM,startH:ph.hMM,startCX:e.clientX,startCY:e.clientY,startXMM:ph.xMM,startYMM:ph.yMM,groupSnaps:buildGroupSnaps(ph.id)};}}
+                      drag.current={mode:'photoResize',id:ph.id,startW:ph.wMM,startH:ph.hMM,startCX:e.clientX,startCY:e.clientY,startXMM:ph.xMM,startYMM:ph.yMM,groupSnaps:buildGroupSnaps(ph.id)};}}
                     style={{position:"absolute",left:pRes.x,top:pRes.y,
                       width:BTN,height:BTN,background:"#27ae60",borderRadius:"50%",
                       cursor:"nwse-resize",zIndex:30,
@@ -2461,7 +2428,7 @@ function CardEditor({onReset}){
                   <div onMouseDown={e=>{
                       e.stopPropagation();e.preventDefault();
                       const cr=cardRef.current.getBoundingClientRect();
-                      iRotate.current={id:im.id,cx:cr.left+ix+iw/2,cy:cr.top+iy+ih/2,
+                      drag.current={mode:'imageRotate',id:im.id,cx:cr.left+ix+iw/2,cy:cr.top+iy+ih/2,
                         startAngle:Math.atan2(e.clientY-(cr.top+iy+ih/2),e.clientX-(cr.left+ix+iw/2))*180/Math.PI,
                         startRotate:im.rotate||0, groupSnaps:buildGroupRotateSnaps(im.id)};
                     }}
@@ -2474,7 +2441,7 @@ function CardEditor({onReset}){
                   </div>
                   <div onMouseDown={e=>{
                       e.stopPropagation();e.preventDefault();
-                      iResize.current={id:im.id,startW:im.wMM,startH:im.hMM,startCX:e.clientX,startCY:e.clientY,aspect:im.aspect,startXMM:im.xMM,startYMM:im.yMM,groupSnaps:buildGroupSnaps(im.id)};
+                      drag.current={mode:'imageResize',id:im.id,startW:im.wMM,startH:im.hMM,startCX:e.clientX,startCY:e.clientY,aspect:im.aspect,startXMM:im.xMM,startYMM:im.yMM,groupSnaps:buildGroupSnaps(im.id)};
                     }}
                     style={{position:"absolute",left:iRes.x,top:iRes.y,width:BTN2,height:BTN2,
                       background:"#27ae60",borderRadius:"50%",cursor:"nwse-resize",zIndex:30,
@@ -2499,7 +2466,7 @@ function CardEditor({onReset}){
                       return(
                         <div key={edge} onMouseDown={e=>{
                             e.stopPropagation();e.preventDefault();
-                            iEdgeDrag.current={id:im.id,edge,startW:im.wMM,startH:im.hMM,
+                            drag.current={mode:'imageEdgeResize',id:im.id,edge,startW:im.wMM,startH:im.hMM,
                               startX:e.clientX,startY:e.clientY,startXMM:im.xMM,startYMM:im.yMM};
                           }}
                           style={{position:'absolute',left:pos.x,top:pos.y,width:ARR,height:ARR,
@@ -2560,7 +2527,7 @@ function CardEditor({onReset}){
                       e.stopPropagation();e.preventDefault();
                       const cr=cardRef.current.getBoundingClientRect();
                       const acx=cr.left+sx+sw/2, acy=cr.top+sy+shh/2;
-                      shRotate.current={id:sh.id,cx:acx,cy:acy,
+                      drag.current={mode:'shapeRotate',id:sh.id,cx:acx,cy:acy,
                         startAngle:Math.atan2(e.clientY-acy,e.clientX-acx)*180/Math.PI,
                         startRotate:sh.rotate||0, groupSnaps:buildGroupRotateSnaps(sh.id)};
                     }}
@@ -2572,7 +2539,7 @@ function CardEditor({onReset}){
                     </svg>
                   </div>
                   <div onMouseDown={e=>{e.stopPropagation();e.preventDefault();
-                      sResize.current={id:sh.id,startW:sh.wMM,startH:sh.hMM,startCX:e.clientX,startCY:e.clientY,startXMM:sh.xMM,startYMM:sh.yMM,groupSnaps:buildGroupSnaps(sh.id)};}}
+                      drag.current={mode:'shapeResize',id:sh.id,startW:sh.wMM,startH:sh.hMM,startCX:e.clientX,startCY:e.clientY,startXMM:sh.xMM,startYMM:sh.yMM,groupSnaps:buildGroupSnaps(sh.id)};}}
                     style={{position:"absolute",left:res.x,top:res.y,width:BTN,height:BTN,
                       background:"#27ae60",borderRadius:"50%",cursor:"nwse-resize",zIndex:30,
                       display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.35)"}}>
@@ -2626,7 +2593,7 @@ function CardEditor({onReset}){
                       e.stopPropagation();e.preventDefault();
                       const cr=cardRef.current.getBoundingClientRect();
                       const acx=cr.left+ix+isz/2, acy=cr.top+iy+isz/2;
-                      iconRotate.current={id:ic.id,cx:acx,cy:acy,
+                      drag.current={mode:'iconRotate',id:ic.id,cx:acx,cy:acy,
                         startAngle:Math.atan2(e.clientY-acy,e.clientX-acx)*180/Math.PI,
                         startRotate:ic.rotate||0, groupSnaps:buildGroupRotateSnaps(ic.id)};
                     }}
@@ -2638,7 +2605,7 @@ function CardEditor({onReset}){
                     </svg>
                   </div>
                   <div onMouseDown={e=>{e.stopPropagation();e.preventDefault();
-                      iconResize.current={id:ic.id,startSz:ic.sizeMM,startCX:e.clientX,startCY:e.clientY,startXMM:ic.xMM,startYMM:ic.yMM,groupSnaps:buildGroupSnaps(ic.id)};}}                    style={{position:"absolute",left:res.x,top:res.y,width:BTN,height:BTN,
+                      drag.current={mode:'iconResize',id:ic.id,startSz:ic.sizeMM,startCX:e.clientX,startCY:e.clientY,startXMM:ic.xMM,startYMM:ic.yMM,groupSnaps:buildGroupSnaps(ic.id)};}}                    style={{position:"absolute",left:res.x,top:res.y,width:BTN,height:BTN,
                       background:"#27ae60",borderRadius:"50%",cursor:"nwse-resize",zIndex:30,
                       display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 1px 5px rgba(0,0,0,.35)"}}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -2654,8 +2621,9 @@ function CardEditor({onReset}){
             {texts.filter(t=>sel===t.id&&editing!==t.id).map(t=>{
               const domEl=document.querySelector(`[data-elem-id="${t.id}"]`);
               let tw,th;
-              if(domEl){tw=Math.min(domEl.offsetWidth,CW);th=domEl.offsetHeight;}
-              else{tw=t.text.length*t.fs*FSC*0.6+6;th=t.fs*FSC*1.4+2;}
+              const visibleW=CW-P(t.xMM); // 텍스트 시작 위치에서 카드 오른쪽 끝까지의 실제 보이는 폭
+              if(domEl){tw=Math.min(domEl.offsetWidth,visibleW);th=domEl.offsetHeight;}
+              else{tw=Math.min(t.text.length*t.fs*FSC*0.6+6,visibleW);th=t.fs*FSC*1.4+2;}
               const tx=RULER_SZ+P(t.xMM), ty=RULER_SZ+P(t.yMM);
               const cx=tx+tw/2, cy=ty+th/2;
               const BTN=22;
@@ -2699,7 +2667,7 @@ function CardEditor({onReset}){
                       e.stopPropagation(); e.preventDefault();
                       const cr=cardRef.current.getBoundingClientRect();
                       const acx=cr.left+P(t.xMM)+tw/2, acy=cr.top+P(t.yMM)+th/2;
-                      tRotate.current={id:t.id,cx:acx,cy:acy,
+                      drag.current={mode:'textRotate',id:t.id,cx:acx,cy:acy,
                         startAngle:Math.atan2(e.clientY-acy,e.clientX-acx)*180/Math.PI,
                         startRotate:t.rotate||0, groupSnaps:buildGroupRotateSnaps(t.id)};
                     }}
@@ -2714,7 +2682,7 @@ function CardEditor({onReset}){
                   {/* 리사이즈 — 우하단 바깥 */}
                   <div onMouseDown={e=>{
                       e.stopPropagation(); e.preventDefault();
-                      tResize.current={id:t.id,startFs:t.fs,startCY:e.clientY,startCX:e.clientX,startXMM:t.xMM,startYMM:t.yMM,groupSnaps:buildGroupSnaps(t.id)};
+                      drag.current={mode:'textResize',id:t.id,startFs:t.fs,startCY:e.clientY,startCX:e.clientX,startXMM:t.xMM,startYMM:t.yMM,groupSnaps:buildGroupSnaps(t.id)};
                     }}
                     style={{position:"absolute",left:resPos.x,top:resPos.y,
                       width:BTN,height:BTN,background:"#27ae60",borderRadius:"50%",
