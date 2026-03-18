@@ -529,6 +529,16 @@ function CardEditor({onReset}){
   const fileRef    = useRef(null);
   const imgFileRef = useRef(null);
   const cardRef    = useRef(null);
+  const scrollContainerRef = useRef(null);
+  // 텍스트 편집 중 스크롤 컨테이너 위치 잠금 (브라우저 자동 스크롤 방지)
+  useEffect(()=>{
+    const el=scrollContainerRef.current; if(!el) return;
+    if(!editing) return;
+    const sl=el.scrollLeft, st=el.scrollTop;
+    const lock=()=>{ el.scrollLeft=sl; el.scrollTop=st; };
+    el.addEventListener('scroll',lock,{passive:false});
+    return ()=>el.removeEventListener('scroll',lock);
+  },[editing]);
   /* FA load */
   useEffect(()=>{
     if(!document.getElementById("fa-cdn")){
@@ -1978,7 +1988,7 @@ function CardEditor({onReset}){
       <div style={{flex:1,display:"flex",flexDirection:"row",overflow:"hidden",background:"#ecf0f1",marginRight:220,paddingTop:toolbarH}}>
 
         {/* 자 + 카드 영역 */}
-        <div onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
+        <div ref={scrollContainerRef} onMouseDown={e=>{if(e.target===e.currentTarget){setSel(null);setEditing(null);setSelGuide(null);setShowIconPicker(false);}}} style={{flex:1,minWidth:0,display:"flex",flexDirection:"column",
           alignItems:"center",justifyContent:"center",
           padding:"60px",overflow:"auto",background:"#ecf0f1",position:"relative"}}>
 
@@ -2061,7 +2071,7 @@ function CardEditor({onReset}){
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
-                overflow:"clip",cursor:"default",flexShrink:0,
+                overflow:"hidden",cursor:"default",flexShrink:0,
                 isolation:"isolate"}}>
 
               {grid&&(
