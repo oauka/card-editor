@@ -2071,7 +2071,7 @@ function CardEditor({onReset}){
                 marginLeft:RULER_SZ,marginTop:RULER_SZ,
                 width:CW,height:CH,background:cardBg,
                 boxShadow:"0 4px 20px rgba(0,0,0,.18),0 1px 4px rgba(0,0,0,.1)",
-                overflow:"hidden",cursor:"default",flexShrink:0,
+                overflow:"clip",cursor:"default",flexShrink:0,
                 isolation:"isolate"}}>
 
               {grid&&(
@@ -3625,26 +3625,34 @@ function CropModal({img:initImg,photoId,initShape,initWMM,initHMM,defaultWMM,def
     // 3. 크롭 영역 외부만 반투명 어둠으로 덮기
     ctx.save();
     ctx.fillStyle="rgba(0,0,0,.5)";
-    ctx.beginPath();
-    // 전체 캔버스 (시계방향)
-    ctx.rect(0,0,SIZE,SIZE);
     if(shape==="circle"){
-      // 원형 뚫기 (반시계방향)
+      ctx.beginPath();
+      ctx.rect(0,0,SIZE,SIZE);
       ctx.ellipse(SIZE/2,SIZE/2,bw/2,bh/2,0,0,Math.PI*2,true);
+      ctx.fill("evenodd");
     } else {
       const r=curRadius>0?Math.min(curRadius,bw/2,bh/2):0;
-      // 라운드/사각 rect 뚫기 (반시계방향)
-      ctx.moveTo(bx+r,by);
-      ctx.arcTo(bx,by,bx,by+r,r);
-      ctx.lineTo(bx,by+bh-r);
-      ctx.arcTo(bx,by+bh,bx+r,by+bh,r);
-      ctx.lineTo(bx+bw-r,by+bh);
-      ctx.arcTo(bx+bw,by+bh,bx+bw,by+bh-r,r);
-      ctx.lineTo(bx+bw,by+r);
-      ctx.arcTo(bx+bw,by,bx+bw-r,by,r);
-      ctx.closePath();
+      if(r>0){
+        ctx.beginPath();
+        ctx.rect(0,0,SIZE,SIZE);
+        ctx.moveTo(bx+r,by);
+        ctx.arcTo(bx,by,bx,by+r,r);
+        ctx.lineTo(bx,by+bh-r);
+        ctx.arcTo(bx,by+bh,bx+r,by+bh,r);
+        ctx.lineTo(bx+bw-r,by+bh);
+        ctx.arcTo(bx+bw,by+bh,bx+bw,by+bh-r,r);
+        ctx.lineTo(bx+bw,by+r);
+        ctx.arcTo(bx+bw,by,bx+bw-r,by,r);
+        ctx.closePath();
+        ctx.fill("evenodd");
+      } else {
+        // r=0: 4개 직사각형으로 크롭 영역 바깥만 덮기
+        ctx.fillRect(0,   0,    SIZE,  by);          // 위
+        ctx.fillRect(0,   by+bh,SIZE,  SIZE-by-bh);  // 아래
+        ctx.fillRect(0,   by,   bx,    bh);           // 왼쪽
+        ctx.fillRect(bx+bw, by, SIZE-bx-bw, bh);     // 오른쪽
+      }
     }
-    ctx.fill("evenodd");
     ctx.restore();
 
     // 4. 크롭 영역에 사진 다시 클립해서 그리기 (선명하게)
