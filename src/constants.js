@@ -134,6 +134,7 @@ export const ICON_LIST = [
   {label:"놀람",    type:"surprise"},
 ];
 
+
 // ── 폰트 목록 ──
 export const FONT_LIST = [
   // ── 한국어 ──
@@ -184,7 +185,6 @@ export const FONT_LIST = [
   {label:"Ma Shan Zheng",  family:"'Ma Shan Zheng',cursive",          url:"https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&display=swap"},
   {label:"WDXL 루브리폰트",family:"'WDXL Lubrifont SC',sans-serif",   url:"https://fonts.googleapis.com/css2?family=WDXL+Lubrifont+SC&display=swap"},
   {label:"Chiron GoRound TC",family:"'Chiron GoRound TC',sans-serif", url:"https://fonts.googleapis.com/css2?family=Chiron+GoRound+TC&display=swap"},
-];
 ];
 
 // ── 초기 텍스트 데이터 ──
