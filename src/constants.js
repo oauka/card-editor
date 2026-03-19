@@ -12,7 +12,6 @@ export const uid=()=>`e${++_id}`;
 
 // ── 아이콘 SVG 경로 ──
 export const _IC = {
-const _IC = {
   phone:     "M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24 11.36 11.36 0 003.56.57 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.45.57 3.56a1 1 0 01-.25 1.02l-2.2 2.21z",
   fax:       "M6 9V2h12v7M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2M6 14h12v8H6z",
   mobile:    "M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z",
@@ -133,7 +132,6 @@ export const ICON_LIST = [
   {label:"하트눈",  type:"hearteyes"},
   {label:"별눈",    type:"stareyes"},
   {label:"놀람",    type:"surprise"},
-];
 ];
 
 // ── 폰트 목록 ──
