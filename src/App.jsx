@@ -457,6 +457,9 @@ function CardEditor({onReset}){
   const applyPresetSlot = (slot)=>{
     const snap = presets[slot];
     if(!snap) return;
+    // 프리셋 적용 전 현재 상태를 강제로 히스토리에 저장 (debounce 대기 중인 변경도 포함)
+    clearTimeout(debounceTimer.current);
+    pushHistory();
     skipHistory.current = true;
     // ID 재매핑: 프리셋의 기존 ID와 새로 생성되는 uid()가 충돌하지 않도록
     // 모든 요소의 ID를 새 UID로 교체한다
@@ -756,26 +759,33 @@ function CardEditor({onReset}){
     };
   },[]);
 
-  /* ── 키보드 Delete ── */
+  /* ── 키보드 Delete / Ctrl+Z / Ctrl+Y ── */
   useEffect(()=>{
     const k=e=>{
-      if(editing) return;
       const tag=e.target?.tagName?.toLowerCase();
       if(tag==="input"||tag==="textarea") return;
+      // Ctrl+Z: 되돌리기
+      if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!e.shiftKey){
+        e.preventDefault(); undo(); return;
+      }
+      // Ctrl+Y 또는 Ctrl+Shift+Z: 되살리기
+      if((e.ctrlKey||e.metaKey)&&(e.key==="y"||e.key==="Y"||(e.key.toLowerCase()==="z"&&e.shiftKey))){
+        e.preventDefault(); redo(); return;
+      }
+      if(editing) return;
       if((e.key==="Delete"||e.key==="Backspace")&&sel){
         setTexts(p=>p.filter(t=>t.id!==sel));
         setPhotos(p=>p.filter(ph=>ph.id!==sel));
         setImages(p=>p.filter(im=>im.id!==sel));
         setShapes(p=>p.filter(sh=>sh.id!==sel));
         setIcons(p=>p.filter(ic=>ic.id!==sel));
-        setGuides(p=>p.filter(g=>g.id!==sel));
         removeLayer(sel);
         setSel(null);
       }
     };
     window.addEventListener("keydown",k);
     return()=>window.removeEventListener("keydown",k);
-  },[sel,editing]);
+  },[sel,editing,undo,redo]);
 
   useEffect(()=>{ setZInput(String(Math.round(zoom*100))); },[zoom]);
 
@@ -1151,12 +1161,18 @@ function CardEditor({onReset}){
         ctx.globalAlpha = t.opacity??1;
         ctx.translate(P(t.xMM), P(t.yMM));
         ctx.rotate((t.rotate||0)*Math.PI/180);
-        if(t.flipX) ctx.scale(-1,1);
         ctx.font         = `${sty} ${wgt} ${fs}px "${fam}",sans-serif`;
         ctx.fillStyle    = t.color || '#000';
         ctx.textBaseline = 'top';
         // DOM lineHeight:1.4 의 half-leading 보정 — (1.4-1)/2 * fs
         const halfLead = 0.2 * fs;
+        if(t.flipX){
+          // 텍스트 너비 측정 후 중심 기준으로 반전 (왼쪽 상단 기준 scale(-1,1)하면 위치 어긋남)
+          const tw = ctx.measureText(t.text).width;
+          ctx.translate(tw/2, 0);
+          ctx.scale(-1,1);
+          ctx.translate(-tw/2, 0);
+        }
         if(t.strokeW && t.strokeW>0){
           ctx.lineWidth   = t.strokeW * 2;
           ctx.strokeStyle = t.strokeColor || '#000';
@@ -1281,6 +1297,15 @@ function CardEditor({onReset}){
     setTexts(t=>t.map(tx=>({...tx,
       xMM:Math.max(MAR,Math.min(tx.xMM,ns.w-MAR)),
       yMM:Math.max(MAR,Math.min(tx.yMM,ns.h-MAR))})));
+    setImages(p=>p.map(im=>({...im,
+      xMM:Math.max(MAR,Math.min(im.xMM,ns.w-MAR-im.wMM)),
+      yMM:Math.max(MAR,Math.min(im.yMM,ns.h-MAR-im.hMM))})));
+    setShapes(p=>p.map(sh=>({...sh,
+      xMM:Math.max(MAR,Math.min(sh.xMM,ns.w-MAR-sh.wMM)),
+      yMM:Math.max(MAR,Math.min(sh.yMM,ns.h-MAR-sh.hMM))})));
+    setIcons(p=>p.map(ic=>({...ic,
+      xMM:Math.max(MAR,Math.min(ic.xMM,ns.w-MAR-ic.sizeMM)),
+      yMM:Math.max(MAR,Math.min(ic.yMM,ns.h-MAR-ic.sizeMM))})));
     const isLand=o==="landscape";
     const newW=isLand?Math.max(cardW,cardH):Math.min(cardW,cardH);
     const newH=isLand?Math.min(cardW,cardH):Math.max(cardW,cardH);
@@ -1299,7 +1324,7 @@ function CardEditor({onReset}){
   const addPhoto=()=>{
     const id=uid();
     setSel(id);
-    setPhotos(p=>[...p,{id,xMM:MAR,yMM:MAR,wMM:PW,hMM:PH,src:null,imgX:0,imgY:0,imgScale:1,shape:"rect"}]);
+    setPhotos(p=>[...p,{id,xMM:MAR,yMM:MAR,wMM:PW,hMM:PH,src:null,imgX:0,imgY:0,imgScale:1,shape:"rect",radius:0,borderW:0,borderColor:"#000000"}]);
     addLayer(id,"photo");
   };
 
@@ -1536,6 +1561,31 @@ function CardEditor({onReset}){
             </button>
           ))}
         </div>
+        <Sep/>
+        {/* 줌 컨트롤 — 툴바 고정 */}
+        <button onClick={zOut} disabled={zoom<=ZMIN}
+          style={{width:26,height:26,background:"rgba(0,0,0,.18)",border:"1px solid rgba(0,0,0,.2)",
+            color:zoom<=ZMIN?"rgba(255,255,255,.3)":"rgba(255,255,255,.9)",borderRadius:4,
+            cursor:zoom<=ZMIN?"not-allowed":"pointer",fontSize:16,display:"flex",alignItems:"center",
+            justifyContent:"center",fontWeight:300,flexShrink:0}}>−</button>
+        <div style={{display:"flex",alignItems:"center",background:"rgba(0,0,0,.18)",border:"1px solid rgba(0,0,0,.2)",
+          borderRadius:4,overflow:"hidden",flexShrink:0}}>
+          <input value={zInput} onChange={e=>setZInput(e.target.value)}
+            onBlur={onZCommit}
+            onMouseDown={e=>e.stopPropagation()}
+            onKeyDown={e=>{if(e.key==="Enter")onZCommit();if(e.key==="Escape")setZInput(String(Math.round(zoom*100)));}}
+            style={{width:38,height:26,border:"none",outline:"none",textAlign:"right",
+              fontSize:12,fontWeight:600,color:"#fff",padding:"0 2px 0 4px",background:"transparent"}}/>
+          <span style={{fontSize:11,color:"rgba(255,255,255,.6)",paddingRight:5,paddingLeft:1}}>%</span>
+        </div>
+        <button onClick={zIn} disabled={zoom>=ZMAX}
+          style={{width:26,height:26,background:"rgba(0,0,0,.18)",border:"1px solid rgba(0,0,0,.2)",
+            color:zoom>=ZMAX?"rgba(255,255,255,.3)":"rgba(255,255,255,.9)",borderRadius:4,
+            cursor:zoom>=ZMAX?"not-allowed":"pointer",fontSize:16,display:"flex",alignItems:"center",
+            justifyContent:"center",fontWeight:300,flexShrink:0}}>＋</button>
+        <button onClick={()=>applyZoom(1)}
+          style={{padding:"3px 8px",background:"rgba(0,0,0,.18)",border:"1px solid rgba(0,0,0,.2)",
+            color:"rgba(255,255,255,.85)",borderRadius:4,cursor:"pointer",fontSize:11,flexShrink:0}}>100%</button>
         {/* 바탕색 */}
         <label style={{display:"flex",alignItems:"center",gap:5,cursor:"pointer",flexShrink:0}} title="레이아웃 바탕색">
           <div style={{position:"relative",width:26,height:26,borderRadius:4,
@@ -2084,7 +2134,7 @@ function CardEditor({onReset}){
                 <div data-no-capture="1" key={g.id}
                   onMouseDown={e=>{
                     e.stopPropagation(); e.preventDefault();
-                    setSelGuide(g.id); setSel(g.id);
+                    setSelGuide(g.id);
                     drag.current={mode:'guideDrag',id:g.id,type:g.type,startPosMM:g.posMM,
                       startClient:g.type==="h"?e.clientY:e.clientX};
                   }}
@@ -2755,32 +2805,8 @@ function CardEditor({onReset}){
             })}
           </div>
 
-          {/* 줌 컨트롤 */}
+          {/* 격자/스냅/재단선 컨트롤 */}
           <div style={{display:"flex",alignItems:"center",gap:5,marginTop:8,flexWrap:"wrap",justifyContent:"center"}}>
-            <button onClick={zOut} disabled={zoom<=ZMIN}
-              style={{width:28,height:28,background:"rgba(0,0,0,.08)",border:"1px solid rgba(0,0,0,.15)",
-                color:zoom<=ZMIN?"#bdc3c7":"#5d6d7e",borderRadius:5,cursor:zoom<=ZMIN?"not-allowed":"pointer",
-                fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:300}}>−</button>
-            <div style={{display:"flex",alignItems:"center",background:"#fff",border:"1px solid #bdc3c7",
-              borderRadius:5,overflow:"hidden",boxShadow:"0 1px 3px rgba(0,0,0,.07)"}}>
-              <input value={zInput} onChange={e=>setZInput(e.target.value)}
-                onBlur={onZCommit}
-                onKeyDown={e=>{if(e.key==="Enter")onZCommit();if(e.key==="Escape")setZInput(String(Math.round(zoom*100)));}}
-                style={{width:44,height:28,border:"none",outline:"none",textAlign:"right",
-                  fontSize:13,fontWeight:600,color:"#2c3e50",padding:"0 2px 0 6px",background:"transparent"}}/>
-              <span style={{fontSize:12,color:"#95a5a6",paddingRight:7,paddingLeft:1,fontWeight:500}}>%</span>
-            </div>
-            <button onClick={zIn} disabled={zoom>=ZMAX}
-              style={{width:28,height:28,background:"rgba(0,0,0,.08)",border:"1px solid rgba(0,0,0,.15)",
-                color:zoom>=ZMAX?"#bdc3c7":"#5d6d7e",borderRadius:5,cursor:zoom>=ZMAX?"not-allowed":"pointer",
-                fontSize:18,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:300}}>＋</button>
-            <button onClick={()=>applyZoom(1)}
-              style={{padding:"4px 10px",background:"rgba(0,0,0,.08)",border:"1px solid rgba(0,0,0,.15)",
-                color:"#5d6d7e",borderRadius:5,cursor:"pointer",fontSize:13}}>100%</button>
-
-            <div style={{width:1,height:20,background:"rgba(0,0,0,.15)",margin:"0 4px"}}/>
-
-            {/* 격자/스냅/재단선 컨트롤 */}
             <label style={{display:"flex",alignItems:"center",gap:4,cursor:"pointer",fontSize:13,color:"#5d6d7e",flexShrink:0}}>
               <input type="checkbox" checked={grid} onChange={e=>setGrid(e.target.checked)}
                 style={{accentColor:"#708090",width:13,height:13}}/>격자
@@ -2997,7 +3023,7 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
       return(
         <div key={im.id} style={{position:"absolute",left:P(im.xMM),top:P(im.yMM),
           width:PS(im.wMM),height:PS(im.hMM),
-          transform:`rotate(${im.rotate||0}deg)`,transformOrigin:"center center",overflow:"hidden",
+          transform:`rotate(${im.rotate||0}deg) scaleX(${im.flipX?-1:1})`,transformOrigin:"center center",overflow:"hidden",
           opacity:im.opacity??1}}>
           <img src={im.src} alt="" draggable={false} style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
         </div>
@@ -3007,7 +3033,7 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
       const sh=shapes.find(x=>x.id===l.id); if(!sh) return null;
       const sx=P(sh.xMM),sy=P(sh.yMM),sw=PS(sh.wMM),shh=PS(sh.hMM);
       const stk=sh.strokeW&&sh.strokeW>0&&sh.stroke&&sh.stroke!=='none';
-      const commonStyle={position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible"};
+      const commonStyle={position:"absolute",left:sx,top:sy,width:sw,height:shh,display:"block",opacity:sh.opacity??1,overflow:"visible",transform:`rotate(${sh.rotate||0}deg) scaleX(${sh.flipX?-1:1})`,transformOrigin:"center center"};
       const sf=sh.fill, ss=stk?sh.stroke:"none", sw2=stk?sh.strokeW:0;
       if(sh.type==="circle") return <svg key={sh.id} style={commonStyle}><ellipse cx={sw/2} cy={shh/2} rx={sw/2} ry={shh/2} fill={sf} stroke={ss} strokeWidth={sw2}/></svg>;
       if(sh.type==="triangle") return <svg key={sh.id} style={commonStyle}><polygon points={`${sw/2},0 ${sw},${shh} 0,${shh}`} fill={sf} stroke={ss} strokeWidth={sw2}/></svg>;
@@ -3037,11 +3063,12 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
         <div key={ph.id} style={{position:"absolute",left:P(ph.xMM),top:P(ph.yMM),
           width:PS(ph.wMM),height:PS(ph.hMM),overflow:"hidden",
           clipPath:ph.shape==="circle"?"ellipse(50% 50% at 50% 50%)":"none",
-          borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`}}>
+          borderRadius:ph.shape==="circle"?"0":`${ph.radius||0}px`,
+          transform:`rotate(${ph.rotate||0}deg) scaleX(${ph.flipX?-1:1})`,transformOrigin:"center center"}}>
           <img src={ph.src} draggable={false} alt="" style={{width:"100%",height:"100%",objectFit:"fill",display:"block"}}/>
           {(ph.borderW||0)>0&&(
             <div style={{position:"absolute",inset:0,
-              boxShadow:`inset 0 0 0 ${ph.borderW||0}px ${ph.borderColor||"#000"}`,
+              boxShadow:`inset 0 0 0 ${(ph.borderW||0)*FSC}px ${ph.borderColor||"#000"}`,
               borderRadius:ph.shape==="circle"?"50%":`${ph.radius||0}px`,pointerEvents:"none"}}/>
           )}
         </div>
@@ -3054,7 +3081,7 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
       const commonTextStyle={position:"absolute",left:P(t.xMM),top:P(t.yMM),
         fontSize:t.fs*FSC,fontWeight:t.bold?"700":"400",fontStyle:t.italic?"italic":"normal",
         textDecoration:tdec,fontFamily:t.font||"'Noto Sans KR',sans-serif",whiteSpace:"pre",lineHeight:1.4,pointerEvents:"none",
-        transform:`rotate(${t.rotate||0}deg)`,transformOrigin:"center center",opacity:t.opacity??1};
+        transform:`rotate(${t.rotate||0}deg) scaleX(${t.flipX?-1:1})`,transformOrigin:"center center",opacity:t.opacity??1};
       return(
         <div key={t.id} style={{position:"absolute",left:0,top:0,width:0,height:0}}>
           {hasSt&&(
@@ -3075,7 +3102,7 @@ function PreviewModal({orient,photos,texts,images,shapes=[],icons=[],layers=[],s
       return(
         <div key={ic.id} style={{position:"absolute",left:P(ic.xMM),top:P(ic.yMM),
           width:isz,height:isz,display:"flex",alignItems:"center",justifyContent:"center",
-          pointerEvents:"none",transform:`rotate(${ic.rotate||0}deg)`,transformOrigin:"center center",opacity:ic.opacity??1}}>
+          pointerEvents:"none",transform:`rotate(${ic.rotate||0}deg) scaleX(${ic.flipX?-1:1})`,transformOrigin:"center center",opacity:ic.opacity??1}}>
           <IcoSVG type={ic.type} color={ic.color} size={isz*0.8}/>
         </div>
       );
