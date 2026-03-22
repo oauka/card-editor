@@ -1223,7 +1223,7 @@ function CardEditor({onReset}){
         background:"#ffffff",borderBottom:"1px solid #e0e0e0",padding:"6px 16px",
         display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:4,
         fontSize:10,color:"#888",lineHeight:1.5}}>
-        <span>Copyright 2026. MUJIMUJI Options Editor All rights reserved. &nbsp;|&nbsp; 본 서비스(에디터)의 무단 복제, 수정 및 배포를 금지합니다.</span>
+        <span>Copyright 2026. MUJIMUJI Options Editor &nbsp;|&nbsp; 본 서비스(에디터)의 무단 복제, 확장 및 배포를 금지합니다. &nbsp;|&nbsp; <a href="https://oauka.github.io/newluvbit_public/privacy_policy.html" target="_blank" rel="noopener noreferrer" style={{color:"#555",textDecoration:"none",fontWeight:"bold"}}>개인 정보 처리 방침</a></span>
         <span>문의 및 버그 제보 Mail : <a href="mailto:mujimuji.purity012@aleeas.com" style={{color:"#708090",textDecoration:"none"}}>mujimuji.purity012@aleeas.com</a></span>
       </div>
       <div style={{position:"fixed",top:copyrightH,left:0,right:220,zIndex:200,background:"#708090"}}>
